@@ -15,12 +15,36 @@
 #include "xenia/apu/conversion.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/helper/sdl/sdl_helper.h"
 
 namespace xe {
 namespace apu {
 namespace sdl {
+
+#if XE_PLATFORM_IOS
+// On iOS, XAudio render driver frames arrive in little-endian format.
+// The standard BE conversion functions would corrupt the audio by
+// byte-swapping samples that are already in the correct byte order.
+// This function performs the 5.1 -> stereo downmix without any byte swap.
+static void downmix_6_LE_to_2_LE(float* output, const float* input,
+                                  size_t ch_sample_count) {
+  // Default 5.1 channel mapping: fl, fr, fc, lf, bl, br
+  // https://docs.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-default-channel-mapping
+  for (size_t sample = 0; sample < ch_sample_count; sample++) {
+    float fl = input[0 * ch_sample_count + sample];
+    float fr = input[1 * ch_sample_count + sample];
+    float fc = input[2 * ch_sample_count + sample];
+    // channel 3 (lf/LFE) intentionally discarded
+    float bl = input[4 * ch_sample_count + sample];
+    float br = input[5 * ch_sample_count + sample];
+    float center_halved = fc * 0.5f;
+    output[sample * 2]     = (fl + bl + center_halved) * (1.0f / 2.5f);
+    output[sample * 2 + 1] = (fr + br + center_halved) * (1.0f / 2.5f);
+  }
+}
+#endif  // XE_PLATFORM_IOS
 
 SDLAudioDriver::SDLAudioDriver(xe::threading::Semaphore* semaphore,
                                uint32_t frequency, uint32_t channels,
@@ -176,9 +200,15 @@ void SDLAudioDriver::SDLCallback(void* userdata, Uint8* stream, int len) {
     } else if (driver->need_format_conversion_) {
       switch (driver->sdl_device_channels_) {
         case 2:
+#if XE_PLATFORM_IOS
+          // iOS: frames are already little-endian, skip the BE byte swap.
+          downmix_6_LE_to_2_LE(reinterpret_cast<float*>(stream), buffer,
+                                driver->channel_samples_);
+#else
           conversion::sequential_6_BE_to_interleaved_2_LE(
               reinterpret_cast<float*>(stream), buffer,
               driver->channel_samples_);
+#endif
           break;
         case 6:
           conversion::sequential_6_BE_to_interleaved_6_LE(
