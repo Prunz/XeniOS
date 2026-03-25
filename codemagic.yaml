@@ -85,10 +85,10 @@ workflows:
           mkdir -p scratch/artifacts/Payload
           cp -r "$APP_PATH" scratch/artifacts/Payload/
           cd scratch/artifacts
-          zip -qr xenios_ios.ipa Payload
+          zip -qr xenios_test.ipa Payload
           rm -rf Payload
           cd ../..
           echo "IPA created at scratch/artifacts/xenios_ios.ipa"
 
     artifacts:
-      - scratch/artifacts/xenios_ios.ipa
+      - scratch/artifacts/xenios_test.ipa
