@@ -23,29 +23,6 @@ namespace xe {
 namespace apu {
 namespace sdl {
 
-#if XE_PLATFORM_IOS
-// On iOS, XAudio render driver frames arrive in little-endian format.
-// The standard BE conversion functions would corrupt the audio by
-// byte-swapping samples that are already in the correct byte order.
-// This function performs the 5.1 -> stereo downmix without any byte swap.
-static void downmix_6_LE_to_2_LE(float* output, const float* input,
-                                  size_t ch_sample_count) {
-  // Default 5.1 channel mapping: fl, fr, fc, lf, bl, br
-  // https://docs.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-default-channel-mapping
-  for (size_t sample = 0; sample < ch_sample_count; sample++) {
-    float fl = input[0 * ch_sample_count + sample];
-    float fr = input[1 * ch_sample_count + sample];
-    float fc = input[2 * ch_sample_count + sample];
-    // channel 3 (lf/LFE) intentionally discarded
-    float bl = input[4 * ch_sample_count + sample];
-    float br = input[5 * ch_sample_count + sample];
-    float center_halved = fc * 0.5f;
-    output[sample * 2]     = (fl + bl + center_halved) * (1.0f / 2.5f);
-    output[sample * 2 + 1] = (fr + br + center_halved) * (1.0f / 2.5f);
-  }
-}
-#endif  // XE_PLATFORM_IOS
-
 SDLAudioDriver::SDLAudioDriver(xe::threading::Semaphore* semaphore,
                                uint32_t frequency, uint32_t channels,
                                bool need_format_conversion)
@@ -130,6 +107,26 @@ bool SDLAudioDriver::Initialize() {
   }
   sdl_device_channels_ = obtained_spec.channels;
 
+  // If the hardware gave us a different buffer size than requested, update
+  // channel_samples_ and frame_size_ to match. On iOS, CoreAudio may return
+  // a larger buffer than the 256 samples we request. If we don't update here,
+  // the SDL callback fires with a len that doesn't match channel_samples_,
+  // causing the conversion to fill only part of the output buffer while the
+  // rest remains as garbage - producing constant noise.
+  if (obtained_spec.samples != channel_samples_) {
+    XELOGW(
+        "SDLAudioDriver: buffer size changed by hardware: requested={} "
+        "obtained={} channels={} -> updating channel_samples_",
+        channel_samples_, obtained_spec.samples, sdl_device_channels_);
+    channel_samples_ = obtained_spec.samples;
+    frame_size_ = sizeof(float) * frame_channels_ * channel_samples_;
+  }
+
+  XELOGI(
+      "SDLAudioDriver: opened device freq={} channels={} samples={} format={}",
+      obtained_spec.freq, obtained_spec.channels, obtained_spec.samples,
+      obtained_spec.format);
+
   SDL_PauseAudioDevice(sdl_device_id_, 0);
 
   return true;
@@ -200,15 +197,9 @@ void SDLAudioDriver::SDLCallback(void* userdata, Uint8* stream, int len) {
     } else if (driver->need_format_conversion_) {
       switch (driver->sdl_device_channels_) {
         case 2:
-#if XE_PLATFORM_IOS
-          // iOS: frames are already little-endian, skip the BE byte swap.
-          downmix_6_LE_to_2_LE(reinterpret_cast<float*>(stream), buffer,
-                                driver->channel_samples_);
-#else
           conversion::sequential_6_BE_to_interleaved_2_LE(
               reinterpret_cast<float*>(stream), buffer,
               driver->channel_samples_);
-#endif
           break;
         case 6:
           conversion::sequential_6_BE_to_interleaved_6_LE(
