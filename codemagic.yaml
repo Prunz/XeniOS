@@ -28,6 +28,10 @@ workflows:
         script: |
           ./xb premake --target_os=ios
 
+      - name: Download Metal Toolchain
+        script: |
+           xcodebuild -downloadComponent MetalToolchain
+
       - name: Build iOS app (unsigned)
         script: |
           ./xb build --config=release --target_os=ios --no_premake --target=xenia-app -- \
