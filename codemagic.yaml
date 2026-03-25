@@ -88,7 +88,7 @@ workflows:
           zip -qr xenios_test.ipa Payload
           rm -rf Payload
           cd ../..
-          echo "IPA created at scratch/artifacts/xenios_ios.ipa"
+          echo "IPA created at scratch/artifacts/xenios_test.ipa"
 
     artifacts:
       - scratch/artifacts/xenios_test.ipa
