@@ -1,0 +1,93 @@
+workflows:
+  xenios-ios:
+    name: XeniOS iOS Build
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    environment:
+      vars:
+        BUNDLE_ID: "YRU4RBPYN8.app.white8231.aurora3923"
+      xcode: latest
+      python: 3.11
+
+    scripts:
+      - name: Install Python dependencies
+        script: |
+          pip3 install --break-system-packages pyaml
+
+      - name: Initialize submodules
+        script: |
+          git submodule update --init --depth=1 -j$(sysctl -n hw.ncpu) \
+            $(grep -oE 'path = .+' .gitmodules | sed 's/path = //' | \
+              grep -v 'premake-androidndk\|premake-export-compile-commands\|DirectXShaderCompiler')
+          git -C third_party/DirectXShaderCompiler submodule update --init --depth=1 \
+            external/SPIRV-Headers external/SPIRV-Tools
+
+      - name: Run premake for iOS
+        script: |
+          ./xb premake --target_os=ios
+
+      - name: Build iOS app (unsigned)
+        script: |
+          ./xb build --config=release --target_os=ios --no_premake --target=xenia-app -- \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            CODE_SIGN_IDENTITY= \
+            IPHONEOS_DEPLOYMENT_TARGET=16.0
+
+      - name: Re-sign IPA with developer certificate
+        script: |
+          set -e
+
+          # Find the built .app
+          APP_PATH=$(find build/bin/iOS-ARM64/Release -name "*.app" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: Could not find .app bundle"
+            exit 1
+          fi
+          echo "Found app: $APP_PATH"
+
+          # Write certificate to keychain
+          echo "$CERTIFICATE_BASE64" | base64 --decode > /tmp/cert.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import /tmp/cert.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+          # Write provisioning profile
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > /tmp/profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(security cms -D -i /tmp/profile.mobileprovision | \
+            plutil -extract UUID raw -)
+          cp /tmp/profile.mobileprovision \
+            ~/Library/MobileDevice/Provisioning\ Profiles/${UUID}.mobileprovision
+
+          # Get signing identity name
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | \
+            grep "iPhone\|Apple Development\|iOS" | head -1 | \
+            sed 's/.*"\(.*\)"/\1/')
+          echo "Signing identity: $IDENTITY"
+
+          # Embed provisioning profile and re-sign
+          cp /tmp/profile.mobileprovision "$APP_PATH/embedded.mobileprovision"
+          codesign --force --sign "$IDENTITY" \
+            --entitlements xenia_ios.entitlements \
+            --timestamp=none \
+            "$APP_PATH"
+
+          # Package as IPA
+          mkdir -p scratch/artifacts/Payload
+          cp -r "$APP_PATH" scratch/artifacts/Payload/
+          cd scratch/artifacts
+          zip -qr xenios_ios.ipa Payload
+          rm -rf Payload
+          cd ../..
+          echo "IPA created at scratch/artifacts/xenios_ios.ipa"
+
+    artifacts:
+      - scratch/artifacts/xenios_ios.ipa
