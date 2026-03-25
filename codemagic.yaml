@@ -8,7 +8,6 @@ workflows:
       vars:
         BUNDLE_ID: "YRU4RBPYN8.app.white8231.aurora3923"
       xcode: latest
-      python: 3.11
 
     scripts:
       - name: Install Python dependencies
