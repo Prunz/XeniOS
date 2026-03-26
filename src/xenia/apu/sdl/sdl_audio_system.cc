@@ -104,6 +104,7 @@ XELOGW(
 
 // Mark the media player slot so the mix callback skips BE->LE conversion.
 // FFmpeg output is already interleaved little-endian float PCM.
+// actual_channels is set later by the media player via SetMixSlotChannels.
 if (index == kMediaPlayerMixSlot) {
 mix_slots_[index].needs_format_conversion = false;
 }
@@ -217,8 +218,10 @@ void SDLAudioSystem::MixSlotSubmit(size_t slot_index, float* frame) {
 assert_true(slot_index < kMixSlotCount);
 auto& slot = mix_slots_[slot_index];
 
+// Use the slot’s actual channel count. Guest XMA clients use 6ch;
+// the media player uses the FFmpeg-reported channel count (often 2).
 const size_t frame_samples =
-AudioDriver::kFrameChannelsDefault * mix_channel_samples_;
+slot.actual_channels * mix_channel_samples_;
 float* buf;
 {
 std::unique_lock<std::mutex> guard(slot.mutex);
@@ -304,8 +307,20 @@ if (slot.needs_format_conversion) {
     conversion::sequential_6_BE_to_interleaved_6_LE(tmp, frame, ch_samples);
   }
 } else {
-  // Media player audio (FFmpeg): already interleaved LE, copy directly.
-  std::memcpy(tmp, frame, out_samples * sizeof(float));
+  // Media player audio (FFmpeg): already interleaved LE.
+  // The frame contains actual_channels * ch_samples floats.
+  // Copy only what fits into the output, distributing into available
+  // output channels. For stereo media player into a 6ch device, FL and
+  // FR map to out[0] and out[1] per sample; remaining channels stay zero.
+  const uint32_t src_ch = slot.actual_channels;
+  const uint32_t dst_ch = system->mix_device_channels_;
+  const uint32_t copy_ch = (src_ch < dst_ch) ? src_ch : dst_ch;
+  std::memset(tmp, 0, out_samples * sizeof(float));
+  for (uint32_t s = 0; s < ch_samples; ++s) {
+    for (uint32_t c = 0; c < copy_ch; ++c) {
+      tmp[s * dst_ch + c] = frame[s * src_ch + c];
+    }
+  }
 }
 
 for (size_t s = 0; s < out_samples; ++s) {
