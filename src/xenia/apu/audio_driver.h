@@ -20,7 +20,7 @@ class AudioDriver {
  public:
   static constexpr uint32_t kFrameFrequencyDefault = 48000;
   static constexpr uint32_t kFrameChannelsDefault = 6;
-  static constexpr uint32_t kChannelSamplesDefault = 512;
+  static constexpr uint32_t kChannelSamplesDefault = 256;
   static constexpr uint32_t kFrameSamplesMax =
       kFrameChannelsDefault * kChannelSamplesDefault;
   static constexpr uint32_t kFrameSizeMax = sizeof(float) * kFrameSamplesMax;
