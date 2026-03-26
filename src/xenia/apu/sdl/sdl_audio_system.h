@@ -72,7 +72,7 @@ class SDLAudioSystem : public AudioSystem {
   bool InitializeMixDevice();
   void ShutdownMixDevice();
 
-  static void MixCallback(void* userdata, Uint8* stream, int len);
+  static void MixCallback(void* userdata, uint8_t* stream, int len);
 #endif  // XE_PLATFORM_IOS
 };
 
