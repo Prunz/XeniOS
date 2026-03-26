@@ -245,26 +245,6 @@ void AudioSystem::SubmitFrame(size_t index, float* samples) {
     return;
   }
 
-#if XE_PLATFORM_IOS
-  // Diagnostic: track client 1 audio content to determine cause of
-  // cutscene distortion. Logs every 500 frames to avoid log spam.
-  if (index == 1) {
-    static uint64_t client1_frame_count = 0;
-    static float client1_max_energy = 0.0f;
-    float energy = 0.0f;
-    for (int i = 0; i < 64; ++i) {
-      energy += std::abs(samples[i]);
-    }
-    if (energy > client1_max_energy) client1_max_energy = energy;
-    client1_frame_count++;
-    if (client1_frame_count % 500 == 0) {
-      XELOGI("SubmitFrame: client 1 alive - frames={} max_energy={:.4f}",
-             client1_frame_count, client1_max_energy);
-      client1_max_energy = 0.0f;
-    }
-  }
-#endif
-
   clients_[index].frames_submitted++;
   clients_[index].frames_processed++;
   (clients_[index].driver)->SubmitFrame(samples);
