@@ -219,23 +219,6 @@ void SDLAudioSystem::MixSlotSubmit(size_t slot_index, float* frame) {
   float* buf;
   {
     std::unique_lock<std::mutex> guard(slot.mutex);
-
-    // Cap queue depth at 2 frames. During GPU stalls the guest submits frames
-    // faster than SDL consumes them; without a cap the backlog plays back
-    // rapidly when the stall ends, producing a doubled echo on every sound.
-    // Drop the oldest frame if we are already at the limit.
-    static constexpr size_t kMaxQueuedFrames = 2;
-    while (slot.frames_queued.size() >= kMaxQueuedFrames) {
-      float* dropped = slot.frames_queued.front();
-      slot.frames_queued.pop();
-      slot.frames_unused.push(dropped);
-      // Release the semaphore for the dropped frame so the guest worker
-      // is not permanently stalled waiting for a slot that was discarded.
-      if (slot.semaphore) {
-        slot.semaphore->Release(1, nullptr);
-      }
-    }
-
     if (slot.frames_unused.empty()) {
       buf = new float[frame_samples];
     } else {
