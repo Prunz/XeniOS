@@ -155,7 +155,7 @@ bool SDLAudioSystem::InitializeMixDevice() {
   desired.freq     = AudioDriver::kFrameFrequencyDefault;
   desired.format   = AUDIO_F32;
   desired.channels = AudioDriver::kFrameChannelsDefault;
-  desired.samples  = AudioDriver::kChannelSamplesDefault;
+  desired.samples  = AudioDriver::kChannelSamplesDefault * 2;
   desired.callback = MixCallback;
   desired.userdata = this;
 
