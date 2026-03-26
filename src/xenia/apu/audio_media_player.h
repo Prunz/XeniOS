@@ -135,6 +135,12 @@ class AudioMediaPlayer {
   std::unique_ptr<xe::threading::Semaphore> driver_semaphore_ = {};
   xe_mutex driver_mutex_ = {};
 
+  // Number of floats per frame submitted to the driver. On non-iOS paths this
+  // is always kFrameSamplesMax (6 * 256 = 1536). On iOS the media player goes
+  // through the software mixer using the actual FFmpeg channel count, so the
+  // frame size is actual_channels * mix_channel_samples_ (e.g. 512 for stereo).
+  size_t media_player_frame_size_ = AudioDriver::kFrameSamplesMax;
+
   bool SetupDriver(uint32_t sample_rate, uint32_t channels);
   void DeleteDriver();
 };
