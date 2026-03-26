@@ -17,7 +17,6 @@
 #include <mutex>
 #include <queue>
 #include <stack>
-#include "SDL.h"
 #include "xenia/base/threading.h"
 #endif  // XE_PLATFORM_IOS
 
@@ -64,7 +63,7 @@ class SDLAudioSystem : public AudioSystem {
   void MixSlotShutdown(size_t slot_index);
 
   MixSlot mix_slots_[kMixSlotCount];
-  SDL_AudioDeviceID mix_device_id_ = -1;
+  uint32_t mix_device_id_ = static_cast<uint32_t>(-1);
   bool mix_sdl_initialized_ = false;
   uint8_t mix_device_channels_ = 0;
   uint32_t mix_channel_samples_ = 0;
