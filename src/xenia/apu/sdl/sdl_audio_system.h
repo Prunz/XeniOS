@@ -65,7 +65,7 @@ class SDLAudioSystem : public AudioSystem {
     // Actual channel count for this slot. Guest XMA clients always use
     // kFrameChannelsDefault (6). The media player uses the channel count
     // reported by FFmpeg (commonly 2 for stereo music).
-    uint32_t actual_channels = AudioDriver::kFrameChannelsDefault;
+    uint32_t actual_channels = 6;  // kFrameChannelsDefault
   };
 
   void MixSlotSubmit(size_t slot_index, float* frame);
