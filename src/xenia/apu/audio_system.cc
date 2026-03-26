@@ -23,23 +23,12 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/kernel_state.h"
 
-// As with normal Microsoft, there are like twelve different ways to access
-// the audio APIs. Early games use XMA*() methods almost exclusively to touch
-// decoders. Later games use XAudio*() and direct memory writes to the XMA
-// structures (as opposed to the XMA* calls), meaning that we have to support
-// both.
-//
-// For ease of implementation, most audio related processing is handled in
-// AudioSystem, and the functions here call off to it.
-// The XMA*() functions just manipulate the audio system in the guest context
-// and let the normal AudioSystem handling take it, to prevent duplicate
-// implementations. They can be found in xboxkrnl_audio_xma.cc
-
 DEFINE_uint32(apu_max_queued_frames, 8,
               "Allows changing max buffered audio frames to reduce audio "
               "delay. Lowering this value might cause performance issues. "
               "Value range: [4-64]",
               "APU");
+
 UPDATE_from_uint32(apu_max_queued_frames, 2024, 8, 31, 20, 64);
 
 namespace xe {
@@ -58,6 +47,7 @@ AudioSystem::AudioSystem(cpu::Processor* processor)
     client_semaphores_[i] = xe::threading::Semaphore::Create(0, queued_frames_);
     wait_handles_[i] = client_semaphores_[i].get();
   }
+
   shutdown_event_ = xe::threading::Event::CreateAutoResetEvent(false);
   assert_not_null(shutdown_event_);
   wait_handles_[kMaximumClientCount] = shutdown_event_.get();
@@ -89,7 +79,7 @@ X_STATUS AudioSystem::Setup(kernel::KernelState* kernel_state) {
             return 0;
           },
           kernel_state->GetSystemProcess()));
-  // As we run audio callbacks the debugger must be able to suspend us.
+
   worker_thread_->set_can_debugger_suspend(true);
   worker_thread_->set_name("Audio Worker");
   worker_thread_->Create();
@@ -98,33 +88,25 @@ X_STATUS AudioSystem::Setup(kernel::KernelState* kernel_state) {
 }
 
 void AudioSystem::WorkerThreadMain() {
-  // Initialize driver and ringbuffer.
   Initialize();
 
-  // Main run loop.
   while (worker_running_) {
-    // These handles signify the number of submitted samples. Once we reach
-    // 64 samples, we wait until our audio backend releases a semaphore
-    // (signaling a sample has finished playing)
     auto result =
         xe::threading::WaitAny(wait_handles_, xe::countof(wait_handles_), true);
+
     if (result.first == xe::threading::WaitResult::kFailed) {
-      // TODO: Assert?
       continue;
     }
 
     if (result.first == threading::WaitResult::kSuccess &&
         result.second == kMaximumClientCount) {
-      // Shutdown event signaled.
       if (paused_.load(std::memory_order_acquire)) {
         pause_fence_.Signal();
         threading::Wait(resume_event_.get(), false);
       }
-
       continue;
     }
 
-    // Number of clients pumped
     bool pumped = false;
     if (result.first == xe::threading::WaitResult::kSuccess) {
       auto index = result.second;
@@ -140,7 +122,6 @@ void AudioSystem::WorkerThreadMain() {
         processor_->Execute(worker_thread_->thread_state(), client_callback,
                             args, xe::countof(args));
       }
-
       pumped = true;
     }
 
@@ -153,9 +134,8 @@ void AudioSystem::WorkerThreadMain() {
       xe::threading::Sleep(std::chrono::milliseconds(500));
     }
   }
-  worker_running_ = false;
 
-  // TODO(benvanik): call module API to kill?
+  worker_running_ = false;
 }
 
 int AudioSystem::FindFreeClient() {
@@ -165,7 +145,6 @@ int AudioSystem::FindFreeClient() {
       return i;
     }
   }
-
   return -1;
 }
 
@@ -174,13 +153,12 @@ void AudioSystem::Initialize() {}
 void AudioSystem::Shutdown() {
   worker_running_ = false;
   shutdown_event_->Set();
+
   if (worker_thread_) {
     worker_thread_->Wait(0, 0, 0, nullptr);
     worker_thread_.reset();
   }
 
-  // Unregister all active clients to shut down their audio drivers before
-  // the semaphores are destroyed with this AudioSystem.
   {
     auto global_lock = global_critical_region_.Acquire();
     for (size_t i = 0; i < kMaximumClientCount; ++i) {
@@ -217,6 +195,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
            index);
     return result;
   }
+
   assert_not_null(driver);
   XELOGI(
       "AudioSystem::RegisterClient: driver created for index={}, driver={:p}",
@@ -233,6 +212,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   clients_[index].frames_submitted.store(0);
   clients_[index].frames_processed.store(0);
   clients_[index].frames_dropped.store(0);
+
   XELOGI("AudioSystem::RegisterClient: client {} registered successfully",
          index);
 
@@ -247,6 +227,7 @@ void AudioSystem::SubmitFrame(size_t index, float* samples) {
   SCOPE_profile_cpu_f("apu");
 
   auto global_lock = global_critical_region_.Acquire();
+
   assert_true(index < kMaximumClientCount);
   if (index >= kMaximumClientCount || !clients_[index].in_use ||
       !clients_[index].driver) {
@@ -256,9 +237,6 @@ void AudioSystem::SubmitFrame(size_t index, float* samples) {
         index, index < kMaximumClientCount ? clients_[index].in_use : false,
         index < kMaximumClientCount ? (void*)clients_[index].driver : nullptr);
 
-    // Submit silence instead of dropping the frame to maintain the callback
-    // chain.  If we don't submit anything, the audio driver's OnBufferEnd
-    // callback will never fire, causing the semaphore to leak.
     if (index < kMaximumClientCount && clients_[index].driver) {
       static float silence[apu::AudioDriver::kFrameSamplesMax] = {0};
       clients_[index].frames_dropped++;
@@ -266,6 +244,22 @@ void AudioSystem::SubmitFrame(size_t index, float* samples) {
     }
     return;
   }
+
+#if XE_PLATFORM_IOS
+  // Diagnostic: log when client 1 is submitting non-silent audio.
+  // This helps determine whether cutscene distortion is caused by client 1
+  // duplicating client 0's audio content into the mixer.
+  if (index == 1) {
+    float energy = 0.0f;
+    for (int i = 0; i < 64; ++i) {
+      energy += std::abs(samples[i]);
+    }
+    if (energy > 0.01f) {
+      XELOGI("SubmitFrame: client 1 non-silent (energy={:.4f})", energy);
+    }
+  }
+#endif
+
   clients_[index].frames_submitted++;
   clients_[index].frames_processed++;
   (clients_[index].driver)->SubmitFrame(samples);
@@ -284,6 +278,7 @@ bool AudioSystem::GetClientPerformance(size_t index,
   out_perf->frames_submitted = clients_[index].frames_submitted.load();
   out_perf->frames_processed = clients_[index].frames_processed.load();
   out_perf->frames_dropped = clients_[index].frames_dropped.load();
+
   return true;
 }
 
@@ -292,6 +287,7 @@ void AudioSystem::UnregisterClient(size_t index) {
 
   auto global_lock = global_critical_region_.Acquire();
   assert_true(index < kMaximumClientCount);
+
   DestroyDriver(clients_[index].driver);
   memory()->SystemHeapFree(clients_[index].wrapped_callback_arg);
 
@@ -304,21 +300,19 @@ void AudioSystem::UnregisterClient(size_t index) {
   clients_[index].frames_processed.store(0);
   clients_[index].frames_dropped.store(0);
 
-  // Drain the semaphore of its count.
   auto client_semaphore = client_semaphores_[index].get();
   xe::threading::WaitResult wait_result;
   do {
     wait_result = xe::threading::Wait(client_semaphore, false,
                                       std::chrono::milliseconds(0));
   } while (wait_result == xe::threading::WaitResult::kSuccess);
+
   assert_true(wait_result == xe::threading::WaitResult::kTimeout);
 }
 
 bool AudioSystem::Save(ByteStream* stream) {
   stream->Write(kAudioSaveSignature);
 
-  // Count the number of used clients first.
-  // Any gaps should be handled gracefully.
   uint32_t used_clients = 0;
   for (int i = 0; i < kMaximumClientCount; i++) {
     if (clients_[i].in_use) {
@@ -327,6 +321,7 @@ bool AudioSystem::Save(ByteStream* stream) {
   }
 
   stream->Write(used_clients);
+
   for (uint32_t i = 0; i < kMaximumClientCount; i++) {
     auto& client = clients_[i];
     if (!client.in_use) {
@@ -349,13 +344,13 @@ bool AudioSystem::Restore(ByteStream* stream) {
   }
 
   uint32_t num_clients = stream->Read<uint32_t>();
+
   for (uint32_t i = 0; i < num_clients; i++) {
     auto id = stream->Read<uint32_t>();
     assert_true(id < kMaximumClientCount);
 
     auto& client = clients_[id];
 
-    // Reset the semaphore and recreate the driver ourselves.
     if (client.driver) {
       UnregisterClient(id);
     }
@@ -363,7 +358,6 @@ bool AudioSystem::Restore(ByteStream* stream) {
     client.callback = stream->Read<uint32_t>();
     client.callback_arg = stream->Read<uint32_t>();
     client.wrapped_callback_arg = stream->Read<uint32_t>();
-
     client.in_use = true;
 
     auto client_semaphore = client_semaphores_[id].get();
@@ -392,10 +386,8 @@ void AudioSystem::Pause() {
     return;
   }
 
-  // Kind of a hack, but it works.
   shutdown_event_->Set();
   pause_fence_.Wait();
-
   xma_decoder_->Pause();
 }
 
@@ -405,7 +397,6 @@ void AudioSystem::Resume() {
   }
 
   resume_event_->Set();
-
   xma_decoder_->Resume();
 }
 
