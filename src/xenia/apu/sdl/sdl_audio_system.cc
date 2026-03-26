@@ -248,7 +248,7 @@ void SDLAudioSystem::MixSlotShutdown(size_t slot_index) {
   }
 }
 
-void SDLAudioSystem::MixCallback(void* userdata, Uint8* stream, int len) {
+void SDLAudioSystem::MixCallback(void* userdata, uint8_t* stream, int len) {
   auto* system = static_cast<SDLAudioSystem*>(userdata);
 
   if (!stream || len <= 0) {
