@@ -479,7 +479,7 @@ void AudioMediaPlayer::OnStateChanged() {
 }
 
 void AudioMediaPlayer::ProcessAudioBuffer(std::vector<float>* buffer) {
-  while (buffer->size() >= xe::apu::AudioDriver::kFrameSamplesMax) {
+  while (buffer->size() >= media_player_frame_size_) {
     xe::threading::Wait(driver_semaphore_.get(), true);
 
     if (!IsSongLoaded()) {
@@ -489,7 +489,7 @@ void AudioMediaPlayer::ProcessAudioBuffer(std::vector<float>* buffer) {
 
     driver_->SubmitFrame(buffer->data());
     buffer->erase(buffer->begin(),
-                  buffer->begin() + xe::apu::AudioDriver::kFrameSamplesMax);
+                  buffer->begin() + media_player_frame_size_);
   }
 }
 
@@ -522,6 +522,11 @@ bool AudioMediaPlayer::SetupDriver(uint32_t sample_rate, uint32_t channels) {
       sdl_system->mix_slots_[
           xe::apu::sdl::SDLAudioSystem::kMediaPlayerMixSlot].actual_channels =
           channels;
+      // Set the frame size so ProcessAudioBuffer chunks data correctly.
+      // Must match actual_channels * mix_channel_samples_ so the mixer
+      // receives exactly one full frame per SubmitFrame call.
+      media_player_frame_size_ =
+          channels * sdl_system->mix_channel_samples_;
     }
   }
   if (!driver_) {
