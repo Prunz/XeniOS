@@ -246,16 +246,21 @@ void AudioSystem::SubmitFrame(size_t index, float* samples) {
   }
 
 #if XE_PLATFORM_IOS
-  // Diagnostic: log when client 1 is submitting non-silent audio.
-  // This helps determine whether cutscene distortion is caused by client 1
-  // duplicating client 0's audio content into the mixer.
+  // Diagnostic: track client 1 audio content to determine cause of
+  // cutscene distortion. Logs every 500 frames to avoid log spam.
   if (index == 1) {
+    static uint64_t client1_frame_count = 0;
+    static float client1_max_energy = 0.0f;
     float energy = 0.0f;
     for (int i = 0; i < 64; ++i) {
       energy += std::abs(samples[i]);
     }
-    if (energy > 0.01f) {
-      XELOGI("SubmitFrame: client 1 non-silent (energy={:.4f})", energy);
+    if (energy > client1_max_energy) client1_max_energy = energy;
+    client1_frame_count++;
+    if (client1_frame_count % 500 == 0) {
+      XELOGI("SubmitFrame: client 1 alive - frames={} max_energy={:.4f}",
+             client1_frame_count, client1_max_energy);
+      client1_max_energy = 0.0f;
     }
   }
 #endif
