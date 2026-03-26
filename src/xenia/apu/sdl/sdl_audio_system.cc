@@ -291,41 +291,32 @@ void SDLAudioSystem::MixCallback(void* userdata, uint8_t* stream, int len) {
       continue;
     }
 
-    // Only slot 0 (primary guest audio) and kMediaPlayerMixSlot contribute
-    // to the output. Guest client slots 1+ are secondary channels that on
-    // real Xbox 360 hardware route to the headset output only and should not
-    // be audible through the main speakers. We still consume their frames and
-    // release their semaphores so the audio worker does not stall.
-    const bool should_mix = (i == 0 || i == kMediaPlayerMixSlot);
-
-    if (should_mix) {
-      const uint32_t ch_samples = system->mix_channel_samples_;
-      if (slot.needs_format_conversion) {
-        // XMA guest audio: 6-channel sequential big-endian -> interleaved LE.
-        if (system->mix_device_channels_ == 2) {
-          conversion::sequential_6_BE_to_interleaved_2_LE(tmp, frame, ch_samples);
-        } else {
-          conversion::sequential_6_BE_to_interleaved_6_LE(tmp, frame, ch_samples);
-        }
+    const uint32_t ch_samples = system->mix_channel_samples_;
+    if (slot.needs_format_conversion) {
+      // XMA guest audio: 6-channel sequential big-endian -> interleaved LE.
+      if (system->mix_device_channels_ == 2) {
+        conversion::sequential_6_BE_to_interleaved_2_LE(tmp, frame, ch_samples);
       } else {
-        // Media player audio (FFmpeg): already interleaved LE.
-        const uint32_t src_ch = slot.actual_channels;
-        const uint32_t dst_ch = system->mix_device_channels_;
-        const uint32_t copy_ch = (src_ch < dst_ch) ? src_ch : dst_ch;
-        std::memset(tmp, 0, out_samples * sizeof(float));
-        for (uint32_t s = 0; s < ch_samples; ++s) {
-          for (uint32_t c = 0; c < copy_ch; ++c) {
-            tmp[s * dst_ch + c] = frame[s * src_ch + c];
-          }
+        conversion::sequential_6_BE_to_interleaved_6_LE(tmp, frame, ch_samples);
+      }
+    } else {
+      // Media player audio (FFmpeg): already interleaved LE.
+      const uint32_t src_ch = slot.actual_channels;
+      const uint32_t dst_ch = system->mix_device_channels_;
+      const uint32_t copy_ch = (src_ch < dst_ch) ? src_ch : dst_ch;
+      std::memset(tmp, 0, out_samples * sizeof(float));
+      for (uint32_t s = 0; s < ch_samples; ++s) {
+        for (uint32_t c = 0; c < copy_ch; ++c) {
+          tmp[s * dst_ch + c] = frame[s * src_ch + c];
         }
       }
-
-      for (size_t s = 0; s < out_samples; ++s) {
-        out[s] += tmp[s];
-      }
-
-      any_frame_mixed = true;
     }
+
+    for (size_t s = 0; s < out_samples; ++s) {
+      out[s] += tmp[s];
+    }
+
+    any_frame_mixed = true;
 
     {
       std::unique_lock<std::mutex> guard(slot.mutex);
