@@ -13,36 +13,36 @@
 
 */
 
-#include “xenia/apu/audio_media_player.h”
-#include “xenia/apu/audio_driver.h”
-#include “xenia/apu/audio_system.h”
-#include “xenia/apu/xma_context.h”
-#include “xenia/base/logging.h”
+#include "xenia/apu/audio_media_player.h"
+#include "xenia/apu/audio_driver.h"
+#include "xenia/apu/audio_system.h"
+#include "xenia/apu/xma_context.h"
+#include "xenia/base/logging.h"
 
 #if XE_PLATFORM_LINUX
-#include “xenia/apu/sdl/sdl_audio_driver.h”
+#include "xenia/apu/sdl/sdl_audio_driver.h"
 #endif
 
 #if XE_PLATFORM_IOS
-#include “xenia/apu/sdl/sdl_audio_system.h”
+#include "xenia/apu/sdl/sdl_audio_system.h"
 #endif
 
-extern “C” {
+extern "C" {
 #if XE_COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable : 4101 4244 5033)
 #endif
-#include “third_party/FFmpeg/libavcodec/avcodec.h”
-#include “third_party/FFmpeg/libavformat/avformat.h”
-#include “third_party/FFmpeg/libavformat/avio.h”
+#include "third_party/FFmpeg/libavcodec/avcodec.h"
+#include "third_party/FFmpeg/libavformat/avformat.h"
+#include "third_party/FFmpeg/libavformat/avio.h"
 #if XE_COMPILER_MSVC
 #pragma warning(pop)
 #endif
 }  // extern “C”
 
-DEFINE_bool(enable_xmp, true, “Enables Music Player playback.”, “APU”);
+DEFINE_bool(enable_xmp, true, "Enables Music Player playback.", "APU");
 DEFINE_int32(xmp_default_volume, 70,
-“Default music volume if game doesn’t set it [0-100].”, “APU”);
+"Default music volume if game doesn’t set it [0-100].", "APU");
 
 namespace xe {
 namespace apu {
@@ -204,7 +204,7 @@ return;
 
 worker_running_ = true;
 worker_thread_ = threading::Thread::Create({}, [&] { WorkerThreadMain(); });
-worker_thread_->set_name(“Audio Media Player”);
+worker_thread_->set_name("Audio Media Player");
 };
 
 X_STATUS AudioMediaPlayer::Play(uint32_t playlist_handle, uint32_t song_handle,
@@ -255,7 +255,7 @@ InitializeAndOpenAvCodec(song_buffer, formatContext, codecContext);
 
 if (!SetupDriver(codecContext->sample_rate,
 codecContext->ch_layout.nb_channels)) {
-XELOGE(“Driver initialization failed!”);
+XELOGE("Driver initialization failed!");
 avcodec_free_context(&codecContext);
 av_freep(&formatContext->pb->buffer);
 avio_context_free(&formatContext->pb);
@@ -569,7 +569,7 @@ driver_ = std::unique_ptr<AudioDriver>(raw_driver);
 }
 }
 if (!driver_) {
-XELOGW(“AudioMediaPlayer: failed to create iOS mix driver for media player”);
+XELOGW("AudioMediaPlayer: failed to create iOS mix driver for media player");
 driver_semaphore_.reset();
 return false;
 }
