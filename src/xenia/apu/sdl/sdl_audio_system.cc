@@ -169,10 +169,10 @@ bool SDLAudioSystem::InitializeMixDevice() {
     }
     allowed_change = 0;
     SDL_CloseAudioDevice(mix_device_id_);
-    mix_device_id_ = -1;
+    mix_device_id_ = static_cast<uint32_t>(-1);
   }
 
-  if (mix_device_id_ <= 0) {
+  if (mix_device_id_ == static_cast<uint32_t>(-1) || mix_device_id_ == 0) {
     XELOGE("SDLAudioSystem (iOS mix): no compatible audio device available");
     return false;
   }
@@ -191,7 +191,7 @@ bool SDLAudioSystem::InitializeMixDevice() {
 void SDLAudioSystem::ShutdownMixDevice() {
   if (mix_device_id_ > 0) {
     SDL_CloseAudioDevice(mix_device_id_);
-    mix_device_id_ = -1;
+    mix_device_id_ = static_cast<uint32_t>(-1);
   }
   if (mix_sdl_initialized_) {
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
