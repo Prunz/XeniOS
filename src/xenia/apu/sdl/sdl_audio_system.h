@@ -63,17 +63,17 @@ class SDLAudioSystem : public AudioSystem {
   void MixSlotSetPaused(size_t slot_index, bool paused);
   void MixSlotShutdown(size_t slot_index);
 
- private:
-  bool InitializeMixDevice();
-  void ShutdownMixDevice();
-
-  static void MixCallback(void* userdata, Uint8* stream, int len);
-
   MixSlot mix_slots_[kMixSlotCount];
   SDL_AudioDeviceID mix_device_id_ = -1;
   bool mix_sdl_initialized_ = false;
   uint8_t mix_device_channels_ = 0;
   uint32_t mix_channel_samples_ = 0;
+
+ private:
+  bool InitializeMixDevice();
+  void ShutdownMixDevice();
+
+  static void MixCallback(void* userdata, Uint8* stream, int len);
 #endif  // XE_PLATFORM_IOS
 };
 
