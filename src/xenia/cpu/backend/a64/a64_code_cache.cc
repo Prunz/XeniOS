@@ -817,7 +817,7 @@ bool A64CodeCache::Initialize() {
 
     if (!generated_code_execute_base_ || !generated_code_write_base_) {
       if (generated_code_execute_base_) {
-        munmap(generated_code_execute_base_, kGeneratedCodeSize);
+        munmap(generated_code_execute_base_, kGeneratedCodeSize * 2);
         generated_code_execute_base_ = nullptr;
       }
       generated_code_write_base_ = nullptr;
