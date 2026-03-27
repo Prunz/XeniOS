@@ -103,6 +103,72 @@ DECLARE_XBOXKRNL_EXPORT2(XAudioGetVoiceCategoryVolume, kAudio, kStub,
 dword_result_t XAudioEnableDucker_entry(dword_t unk) { return X_ERROR_SUCCESS; }
 DECLARE_XBOXKRNL_EXPORT1(XAudioEnableDucker, kAudio, kStub);
 
+// All five XAudioGetDucker* functions are unimplemented. The game calls
+// XAudioEnableDucker (implemented) on gameplay init, then immediately reads
+// back the threshold and level via these getters. With them returning 0,
+// the threshold is "duck at any level" and the level is "fully attenuated",
+// so the game's audio manager stops submitting XAudio frames entirely.
+// The intro cutscene is unaffected because it routes through AudioMediaPlayer,
+// bypassing XAudio. These stubs return safe hardware-representative defaults
+// that prevent the ducker from suppressing audio.
+
+// Returns the current ducker output level as a float bit-cast into a DWORD.
+// 0x3F800000 = 1.0f (no attenuation). Returning 0 causes the audio manager
+// to treat all channels as fully muted.
+dword_result_t XAudioGetDuckerLevel_entry(lpdword_t level_ptr) {
+  if (level_ptr) {
+    // 1.0f bit-cast: full volume, no ducking applied.
+    *level_ptr = 0x3F800000u;
+  }
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(XAudioGetDuckerLevel, kAudio, kStub);
+
+// Returns the ducker threshold as a float bit-cast into a DWORD.
+// 0x3F800000 = 1.0f (only full-scale voice triggers ducking, effectively
+// disabling it). Returning 0 means "duck at any nonzero voice level".
+dword_result_t XAudioGetDuckerThreshold_entry(lpdword_t threshold_ptr) {
+  if (threshold_ptr) {
+    // 1.0f bit-cast: threshold at maximum, ducker never fires.
+    *threshold_ptr = 0x3F800000u;
+  }
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(XAudioGetDuckerThreshold, kAudio, kStub);
+
+// Returns the ducker attack time in milliseconds. This controls how quickly
+// ducking ramps in after voice exceeds the threshold. 100ms matches a
+// typical Xbox 360 hardware default.
+dword_result_t XAudioGetDuckerAttackTime_entry(lpdword_t time_ptr) {
+  if (time_ptr) {
+    *time_ptr = 100;
+  }
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(XAudioGetDuckerAttackTime, kAudio, kStub);
+
+// Returns the ducker hold time in milliseconds. This controls how long
+// ducking is maintained after voice drops below the threshold. 200ms
+// matches a typical Xbox 360 hardware default.
+dword_result_t XAudioGetDuckerHoldTime_entry(lpdword_t time_ptr) {
+  if (time_ptr) {
+    *time_ptr = 200;
+  }
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(XAudioGetDuckerHoldTime, kAudio, kStub);
+
+// Returns the ducker release time in milliseconds. This controls how long
+// the fade-back-to-normal takes after hold expires. 300ms matches a
+// typical Xbox 360 hardware default.
+dword_result_t XAudioGetDuckerReleaseTime_entry(lpdword_t time_ptr) {
+  if (time_ptr) {
+    *time_ptr = 300;
+  }
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(XAudioGetDuckerReleaseTime, kAudio, kStub);
+
 dword_result_t XAudioRegisterRenderDriverClient_entry(lpdword_t callback_ptr,
                                                       lpdword_t driver_ptr) {
   if (!callback_ptr) {
