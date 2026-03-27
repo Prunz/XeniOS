@@ -519,20 +519,18 @@ A64CodeCache::~A64CodeCache() {
   ios_external_prepare_issued.store(false, std::memory_order_release);
   ios_external_detach_issued.store(false, std::memory_order_release);
             
-    if (generated_code_uses_vm_remap_fallback_) {
-      if (generated_code_execute_base_ &&
-          generated_code_execute_base_ != generated_code_write_base_) {
-        vm_deallocate(mach_task_self(),
-                      reinterpret_cast<vm_address_t>(generated_code_execute_base_),
-                      kGeneratedCodeSize);
-        generated_code_execute_base_ = nullptr;
-      }
-      if (generated_code_write_base_) {
-        munmap(generated_code_write_base_, kGeneratedCodeSize * 2);
-        generated_code_write_base_ = nullptr;
-      }
-    }
-  #endif
+  if (generated_code_write_base_ &&
+      generated_code_write_base_ != generated_code_execute_base_) {
+    vm_deallocate(mach_task_self(),
+                  reinterpret_cast<vm_address_t>(generated_code_write_base_),
+                  kGeneratedCodeSize);
+    generated_code_write_base_ = nullptr;
+  }
+  if (generated_code_execute_base_) {
+    munmap(generated_code_execute_base_, kGeneratedCodeSize);
+    generated_code_execute_base_ = nullptr;
+  }
+#endif
   // Unmap all views and close mapping.
   if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
 #if XE_PLATFORM_APPLE && XE_ARCH_ARM64
@@ -819,7 +817,7 @@ bool A64CodeCache::Initialize() {
 
     if (!generated_code_execute_base_ || !generated_code_write_base_) {
       if (generated_code_execute_base_) {
-        munmap(generated_code_execute_base_, kGeneratedCodeSize);
+        munmap(generated_code_execute_base_, kGeneratedCodeSize * 2);
         generated_code_execute_base_ = nullptr;
       }
       generated_code_write_base_ = nullptr;
