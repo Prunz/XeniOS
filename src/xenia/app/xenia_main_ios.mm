@@ -792,6 +792,8 @@ void EmulatorAppIOS::EmulatorThread(const std::filesystem::path& game_path,
       }
     }
 
+    XELOGI("iOS: launch_flags={} launch_data_len={} launch_module='{}'",
+       cvars::launch_flags, cvars::launch_data.size(), cvars::launch_module);
     X_STATUS launch_result = emulator_->LaunchPath(abs_path);
     cvars::launch_module = "";
     cvars::launch_flags = 0;
