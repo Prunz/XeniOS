@@ -160,11 +160,6 @@ void iOSWindow::RequestPaintImpl() {
 }  // namespace ui
 }  // namespace xe
 
-// Declared in xenia_main_ios.mm — called to notify the emulator thread of
-// foreground/background transitions so JIT execution is not attempted while
-// TXM has revoked execute permissions on the code cache.
-extern "C" void XeniosSetAppInForeground(bool foreground);
-
 // Helper Objective-C class for display link callback.
 // Must be at global scope (ObjC declarations cannot appear inside C++
 // namespaces).
@@ -228,7 +223,6 @@ extern "C" void XeniosSetAppInForeground(bool foreground);
 }
 
 - (void)appDidBecomeActive:(NSNotification*)notification {
-  XeniosSetAppInForeground(true);
   // Resume the display link when the app returns to foreground.
   if (_displayLink) {
     _displayLink.paused = NO;
@@ -241,7 +235,6 @@ extern "C" void XeniosSetAppInForeground(bool foreground);
 }
 
 - (void)appDidEnterBackground:(NSNotification*)notification {
-  XeniosSetAppInForeground(false);
   // Pause rendering only once the app is actually backgrounded.
   if (_displayLink) {
     _displayLink.paused = YES;
