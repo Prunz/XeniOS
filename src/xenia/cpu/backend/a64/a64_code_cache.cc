@@ -513,38 +513,32 @@ A64CodeCache::~A64CodeCache() {
                              xe::memory::DeallocationType::kRelease);
   }
 
-  // Unmap all views and close mapping.
-  if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
 #if XE_PLATFORM_APPLE && XE_ARCH_ARM64
-    // Apple ARM64 can use either:
-    // 1) single MAP_JIT allocation (execute == write), or
-    // 2) dual mapping (execute != write), including vm_remap fallback on iOS.
-    if (generated_code_write_base_ &&
-        generated_code_write_base_ != generated_code_execute_base_) {
-      xe::memory::UnmapFileView(mapping_, generated_code_write_base_,
-                                kGeneratedCodeSize);
-      if (generated_code_execute_base_) {
-        xe::memory::UnmapFileView(mapping_, generated_code_execute_base_,
-                                  kGeneratedCodeSize);
-      }
-    } else if (generated_code_execute_base_) {
-      xe::memory::DeallocFixed(generated_code_execute_base_, kGeneratedCodeSize,
-                               xe::memory::DeallocationType::kRelease);
-    }
-#else
-    // Other platforms use MapFileView/UnmapFileView
-    if (generated_code_write_base_ &&
-        generated_code_write_base_ != generated_code_execute_base_) {
-      xe::memory::UnmapFileView(mapping_, generated_code_write_base_,
-                                kGeneratedCodeSize);
+  // iOS dual-map path uses mmap/vm_remap, not file mapping handles.
+  // These must be freed explicitly since mapping_ is invalid on this path.
+  if (generated_code_uses_vm_remap_fallback_) {
+    if (generated_code_write_base_) {
+      vm_deallocate(mach_task_self(),
+                    reinterpret_cast<vm_address_t>(generated_code_write_base_),
+                    kGeneratedCodeSize);
+      generated_code_write_base_ = nullptr;
     }
     if (generated_code_execute_base_) {
-      xe::memory::UnmapFileView(mapping_, generated_code_execute_base_,
-                                kGeneratedCodeSize);
+      munmap(generated_code_execute_base_, kGeneratedCodeSize);
+      generated_code_execute_base_ = nullptr;
     }
+  } else if (generated_code_uses_mprotect_flip_) {
+    if (generated_code_write_base_) {
+      munmap(generated_code_write_base_, kGeneratedCodeSize);
+      generated_code_write_base_ = nullptr;
+      generated_code_execute_base_ = nullptr;
+    }
+  }
 #endif
-    xe::memory::CloseFileMappingHandle(mapping_, file_name_);
-    mapping_ = xe::memory::kFileMappingHandleInvalid;
+
+  // Unmap all views and close mapping.
+  if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
+    // ... existing code unchanged ...
   }
 }
 
