@@ -801,18 +801,14 @@ void EmulatorAppIOS::EmulatorThread(const std::filesystem::path& game_path,
                      ->GetKernelModule<xe::kernel::xam::XamModule>("xam.xex");
       if (xam) {
         auto& ld = xam->loader_data();
-        auto& hex = cvars::launch_data;
-        std::vector<uint8_t> raw;
-        raw.reserve(hex.size() / 2);
-        for (size_t i = 0; i + 1 < hex.size(); i += 2) {
-          raw.push_back(static_cast<uint8_t>(
-              std::stoul(hex.substr(i, 2), nullptr, 16)));
-        }
-        ld.launch_data = std::move(raw);
+        auto& raw = cvars::launch_data;
+        ld.launch_data.assign(
+            reinterpret_cast<const uint8_t*>(raw.data()),
+            reinterpret_cast<const uint8_t*>(raw.data()) + raw.size());
         ld.launch_data_present = true;
         ld.launch_flags = cvars::launch_flags;
-          XELOGI("iOS: Restored {} bytes of launch data into XamModule",
-               cvars::launch_data.size() / 2);
+        XELOGI("iOS: Restored {} bytes of launch data into XamModule",
+               ld.launch_data.size());
       }
     }
 
