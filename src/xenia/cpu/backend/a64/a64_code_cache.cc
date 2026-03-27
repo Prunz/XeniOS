@@ -513,32 +513,38 @@ A64CodeCache::~A64CodeCache() {
                              xe::memory::DeallocationType::kRelease);
   }
 
-#if XE_PLATFORM_APPLE && XE_ARCH_ARM64
-  // iOS dual-map path uses mmap/vm_remap, not file mapping handles.
-  // These must be freed explicitly since mapping_ is invalid on this path.
-  if (generated_code_uses_vm_remap_fallback_) {
-    if (generated_code_write_base_) {
-      vm_deallocate(mach_task_self(),
-                    reinterpret_cast<vm_address_t>(generated_code_write_base_),
-                    kGeneratedCodeSize);
-      generated_code_write_base_ = nullptr;
-    }
-    if (generated_code_execute_base_) {
-      munmap(generated_code_execute_base_, kGeneratedCodeSize);
-      generated_code_execute_base_ = nullptr;
-    }
-  } else if (generated_code_uses_mprotect_flip_) {
-    if (generated_code_write_base_) {
-      munmap(generated_code_write_base_, kGeneratedCodeSize);
-      generated_code_write_base_ = nullptr;
-      generated_code_execute_base_ = nullptr;
-    }
-  }
-#endif
-
   // Unmap all views and close mapping.
   if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
-    // ... existing code unchanged ...
+#if XE_PLATFORM_APPLE && XE_ARCH_ARM64
+    // Apple ARM64 can use either:
+    // 1) single MAP_JIT allocation (execute == write), or
+    // 2) dual mapping (execute != write), including vm_remap fallback on iOS.
+    if (generated_code_write_base_ &&
+        generated_code_write_base_ != generated_code_execute_base_) {
+      xe::memory::UnmapFileView(mapping_, generated_code_write_base_,
+                                kGeneratedCodeSize);
+      if (generated_code_execute_base_) {
+        xe::memory::UnmapFileView(mapping_, generated_code_execute_base_,
+                                  kGeneratedCodeSize);
+      }
+    } else if (generated_code_execute_base_) {
+      xe::memory::DeallocFixed(generated_code_execute_base_, kGeneratedCodeSize,
+                               xe::memory::DeallocationType::kRelease);
+    }
+#else
+    // Other platforms use MapFileView/UnmapFileView
+    if (generated_code_write_base_ &&
+        generated_code_write_base_ != generated_code_execute_base_) {
+      xe::memory::UnmapFileView(mapping_, generated_code_write_base_,
+                                kGeneratedCodeSize);
+    }
+    if (generated_code_execute_base_) {
+      xe::memory::UnmapFileView(mapping_, generated_code_execute_base_,
+                                kGeneratedCodeSize);
+    }
+#endif
+    xe::memory::CloseFileMappingHandle(mapping_, file_name_);
+    mapping_ = xe::memory::kFileMappingHandleInvalid;
   }
 }
 
@@ -718,8 +724,6 @@ bool A64CodeCache::Initialize() {
     }
 
     if (!force_mprotect_flip && should_try_dual_map) {
-      ios_external_prepare_issued.store(false, std::memory_order_release);
-      ios_external_detach_issued.store(false, std::memory_order_release);
       generated_code_execute_base_ = reinterpret_cast<uint8_t*>(
           mmap(nullptr, kGeneratedCodeSize, PROT_READ | PROT_EXEC,
                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
