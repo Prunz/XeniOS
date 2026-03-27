@@ -22,6 +22,7 @@ project("xenia-kernel")
   links({
     "aes_128",
     "fmt",
+    "libcurl",
     "zlib-ng",
     "pugixml",
     "xenia-apu",
@@ -29,6 +30,10 @@ project("xenia-kernel")
     "xenia-cpu",
     "xenia-hid",
     "xenia-vfs",
+  })
+  sysincludedirs({
+    project_root.."/third_party/libcurl/include",
+    project_root.."/third_party/rapidjson/include",
   })
   defines({
     "X86_FEATURES",
