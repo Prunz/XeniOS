@@ -796,23 +796,6 @@ void EmulatorAppIOS::EmulatorThread(const std::filesystem::path& game_path,
     XELOGI("iOS: launch_flags={} launch_data_len={} launch_module='{}'",
            cvars::launch_flags, cvars::launch_data.size(), cvars::launch_module);
 
-    // Restore launch data into the new XamModule if present
-    if (!cvars::launch_data.empty()) {
-      auto xam = emulator_->kernel_state()
-                     ->GetKernelModule<xe::kernel::xam::XamModule>("xam.xex");
-      if (xam) {
-        auto& ld = xam->loader_data();
-        auto& raw = cvars::launch_data;
-        ld.launch_data.assign(
-            reinterpret_cast<const uint8_t*>(raw.data()),
-            reinterpret_cast<const uint8_t*>(raw.data()) + raw.size());
-        ld.launch_data_present = true;
-        ld.launch_flags = cvars::launch_flags;
-        XELOGI("iOS: Restored {} bytes of launch data into XamModule",
-               ld.launch_data.size());
-      }
-    }
-
     X_STATUS launch_result = emulator_->LaunchPath(abs_path);
     cvars::launch_module = "";
     cvars::launch_flags = 0;
