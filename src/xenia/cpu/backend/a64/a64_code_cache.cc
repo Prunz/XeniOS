@@ -724,6 +724,8 @@ bool A64CodeCache::Initialize() {
     }
 
     if (!force_mprotect_flip && should_try_dual_map) {
+      ios_external_prepare_issued.store(false, std::memory_order_release);
+      ios_external_detach_issued.store(false, std::memory_order_release);
       generated_code_execute_base_ = reinterpret_cast<uint8_t*>(
           mmap(nullptr, kGeneratedCodeSize, PROT_READ | PROT_EXEC,
                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
