@@ -163,7 +163,7 @@ void iOSWindow::RequestPaintImpl() {
 // Declared in xenia_main_ios.mm — called to notify the emulator thread of
 // foreground/background transitions so JIT execution is not attempted while
 // TXM has revoked execute permissions on the code cache.
-extern void XeniosSetAppInForeground(bool foreground);
+extern "C" void XeniosSetAppInForeground(bool foreground);
 
 // Helper Objective-C class for display link callback.
 // Must be at global scope (ObjC declarations cannot appear inside C++
