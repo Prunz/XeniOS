@@ -74,12 +74,6 @@ DECLARE_string(launch_module);
 DECLARE_uint32(launch_flags);
 DECLARE_string(launch_data);
 
-static std::atomic<bool> g_app_in_foreground{true};
-
-extern "C" void XeniosSetAppInForeground(bool foreground) {
-  g_app_in_foreground.store(foreground, std::memory_order_release);
-}
-
 namespace xe {
 namespace app {
 
@@ -801,16 +795,7 @@ void EmulatorAppIOS::EmulatorThread(const std::filesystem::path& game_path,
 
     XELOGI("iOS: launch_flags={} launch_data_len={} launch_module='{}'",
            cvars::launch_flags, cvars::launch_data.size(), cvars::launch_module);
-      
-    // Wait for foreground before launching (TXM revokes JIT on background)
-    if (!g_app_in_foreground.load(std::memory_order_acquire)) {
-      XELOGI("iOS: Waiting for foreground before launching JIT code...");
-      while (!g_app_in_foreground.load(std::memory_order_acquire)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      }
-      XELOGI("iOS: Foreground restored, proceeding with launch");
-    }
-      
+
     X_STATUS launch_result = emulator_->LaunchPath(abs_path);
     cvars::launch_module = "";
     cvars::launch_flags = 0;
