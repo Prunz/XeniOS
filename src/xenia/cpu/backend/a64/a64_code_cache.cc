@@ -516,6 +516,9 @@ A64CodeCache::~A64CodeCache() {
   #if XE_PLATFORM_APPLE && XE_ARCH_ARM64
   // On iOS, mmap/vm_remap are used directly; mapping_ is invalid.
   // Free both mappings explicitly so the next launch gets fresh addresses.
+  ios_external_prepare_issued.store(false, std::memory_order_release);
+  ios_external_detach_issued.store(false, std::memory_order_release);
+            
   if (generated_code_write_base_ &&
       generated_code_write_base_ != generated_code_execute_base_) {
     vm_deallocate(mach_task_self(),
