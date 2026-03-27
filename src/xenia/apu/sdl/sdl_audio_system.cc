@@ -25,6 +25,7 @@ namespace apu {
 namespace sdl {
 
 #if XE_PLATFORM_IOS
+
 namespace {
 
 class SDLMixingAudioDriver final : public AudioDriver {
@@ -46,9 +47,7 @@ class SDLMixingAudioDriver final : public AudioDriver {
   }
 
   void Pause() override { system_->MixSlotSetPaused(slot_index_, true); }
-
   void Resume() override { system_->MixSlotSetPaused(slot_index_, false); }
-
   void SetVolume(float) override {}
 
  private:
@@ -57,6 +56,7 @@ class SDLMixingAudioDriver final : public AudioDriver {
 };
 
 }  // namespace
+
 #endif  // XE_PLATFORM_IOS
 
 std::unique_ptr<AudioSystem> SDLAudioSystem::Create(cpu::Processor* processor) {
@@ -102,6 +102,7 @@ X_STATUS SDLAudioSystem::CreateDriver(size_t index,
   if (index == kMediaPlayerMixSlot) {
     mix_slots_[index].needs_format_conversion = false;
   }
+
   *out_driver = new SDLMixingAudioDriver(this, index, semaphore);
   return X_STATUS_SUCCESS;
 #else
@@ -116,7 +117,8 @@ X_STATUS SDLAudioSystem::CreateDriver(size_t index,
 }
 
 AudioDriver* SDLAudioSystem::CreateDriver(xe::threading::Semaphore* semaphore,
-                                          uint32_t frequency, uint32_t channels,
+                                          uint32_t frequency,
+                                          uint32_t channels,
                                           bool need_format_conversion) {
   return new SDLAudioDriver(semaphore, frequency, channels,
                             need_format_conversion);
@@ -124,6 +126,7 @@ AudioDriver* SDLAudioSystem::CreateDriver(xe::threading::Semaphore* semaphore,
 
 void SDLAudioSystem::DestroyDriver(AudioDriver* driver) {
   assert_not_null(driver);
+
 #if XE_PLATFORM_IOS
   if (auto* mix_driver = dynamic_cast<SDLMixingAudioDriver*>(driver)) {
     mix_driver->Shutdown();
@@ -131,6 +134,7 @@ void SDLAudioSystem::DestroyDriver(AudioDriver* driver) {
     return;
   }
 #endif
+
   auto* sdl_driver = dynamic_cast<SDLAudioDriver*>(driver);
   assert_not_null(sdl_driver);
   sdl_driver->Shutdown();
@@ -143,19 +147,29 @@ bool SDLAudioSystem::InitializeMixDevice() {
   if (!xe::helper::sdl::SDLHelper::Prepare()) {
     return false;
   }
-  if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
-    XELOGE("SDLAudioSystem (iOS mix): SDL_InitSubSystem(AUDIO) failed: {}",
-           SDL_GetError());
-    return false;
+
+  // FIX: Only call SDL_InitSubSystem(SDL_INIT_AUDIO) once per process
+  // lifetime. On iOS, the CoreAudio backend cannot survive a full
+  // SDL_QuitSubSystem / SDL_InitSubSystem cycle within the same process —
+  // reinitialising it on the second emulator launch crashes SDL internally
+  // before any error can be logged.
+  static bool sdl_audio_ever_initialized = false;
+  if (!sdl_audio_ever_initialized) {
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+      XELOGE("SDLAudioSystem (iOS mix): SDL_InitSubSystem(AUDIO) failed: {}",
+             SDL_GetError());
+      return false;
+    }
+    sdl_audio_ever_initialized = true;
   }
   mix_sdl_initialized_ = true;
 
   SDL_AudioSpec desired = {};
   SDL_AudioSpec obtained = {};
-  desired.freq     = AudioDriver::kFrameFrequencyDefault;
-  desired.format   = AUDIO_F32;
+  desired.freq = AudioDriver::kFrameFrequencyDefault;
+  desired.format = AUDIO_F32;
   desired.channels = AudioDriver::kFrameChannelsDefault;
-  desired.samples  = AudioDriver::kChannelSamplesDefault;
+  desired.samples = AudioDriver::kChannelSamplesDefault;
   desired.callback = MixCallback;
   desired.userdata = this;
 
@@ -170,9 +184,11 @@ bool SDLAudioSystem::InitializeMixDevice() {
           SDL_GetError(), desired.freq, desired.channels, desired.samples);
       return false;
     }
+
     if (obtained.channels == 2 || obtained.channels == 6) {
       break;
     }
+
     allowed_change = 0;
     SDL_CloseAudioDevice(mix_device_id_);
     mix_device_id_ = static_cast<uint32_t>(-1);
@@ -199,10 +215,14 @@ void SDLAudioSystem::ShutdownMixDevice() {
     SDL_CloseAudioDevice(mix_device_id_);
     mix_device_id_ = static_cast<uint32_t>(-1);
   }
-  if (mix_sdl_initialized_) {
-    SDL_QuitSubSystem(SDL_INIT_AUDIO);
-    mix_sdl_initialized_ = false;
-  }
+
+  // FIX: Do NOT call SDL_QuitSubSystem(SDL_INIT_AUDIO) here.
+  // On iOS the CoreAudio backend cannot survive a quit/reinit within the
+  // same process lifetime — SDL would crash on the second Setup() call.
+  // SDL_InitSubSystem is guarded by a one-time static flag in
+  // InitializeMixDevice(), so skipping QuitSubSystem is safe.
+  mix_sdl_initialized_ = false;
+
   for (size_t i = 0; i < kMixSlotCount; ++i) {
     MixSlotShutdown(i);
   }
@@ -216,6 +236,7 @@ void SDLAudioSystem::MixSlotSubmit(size_t slot_index, float* frame) {
   // the media player uses the FFmpeg-reported channel count (often 2).
   const size_t frame_samples =
       slot.actual_channels * mix_channel_samples_;
+
   float* buf;
   {
     std::unique_lock<std::mutex> guard(slot.mutex);
@@ -241,7 +262,6 @@ void SDLAudioSystem::MixSlotSetPaused(size_t slot_index, bool paused) {
 void SDLAudioSystem::MixSlotShutdown(size_t slot_index) {
   assert_true(slot_index < kMixSlotCount);
   auto& slot = mix_slots_[slot_index];
-
   slot.active.store(false, std::memory_order_release);
   slot.semaphore = nullptr;
 
@@ -258,23 +278,19 @@ void SDLAudioSystem::MixSlotShutdown(size_t slot_index) {
 
 void SDLAudioSystem::MixCallback(void* userdata, uint8_t* stream, int len) {
   auto* system = static_cast<SDLAudioSystem*>(userdata);
-
   if (!stream || len <= 0) {
     return;
   }
 
   const size_t out_samples = static_cast<size_t>(len) / sizeof(float);
   float* out = reinterpret_cast<float*>(stream);
-
   std::memset(out, 0, static_cast<size_t>(len));
 
   float tmp[AudioDriver::kFrameSamplesMax];
-
   bool any_frame_mixed = false;
 
   for (size_t i = 0; i < SDLAudioSystem::kMixSlotCount; ++i) {
     auto& slot = system->mix_slots_[i];
-
     if (!slot.active.load(std::memory_order_acquire)) continue;
     if (slot.paused.load(std::memory_order_acquire)) continue;
 
@@ -292,6 +308,7 @@ void SDLAudioSystem::MixCallback(void* userdata, uint8_t* stream, int len) {
     }
 
     const uint32_t ch_samples = system->mix_channel_samples_;
+
     if (slot.needs_format_conversion) {
       // XMA guest audio: 6-channel sequential big-endian -> interleaved LE.
       if (system->mix_device_channels_ == 2) {
@@ -315,7 +332,6 @@ void SDLAudioSystem::MixCallback(void* userdata, uint8_t* stream, int len) {
     for (size_t s = 0; s < out_samples; ++s) {
       out[s] += tmp[s];
     }
-
     any_frame_mixed = true;
 
     {
