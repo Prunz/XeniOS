@@ -79,35 +79,8 @@ class SDLAudioSystem : public AudioSystem {
   uint32_t mix_channel_samples_ = 0;
 
  private:
-  bool SDLAudioSystem::InitializeMixDevice() {
-    if (!xe::helper::sdl::SDLHelper::Prepare()) {
-      return false;
-    }
-
-    static bool sdl_audio_ever_initialized = false;
-    if (!sdl_audio_ever_initialized) {
-      if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
-        XELOGE("SDLAudioSystem (iOS mix): SDL_InitSubSystem(AUDIO) failed: {}",
-               SDL_GetError());
-        return false;
-      }
-      sdl_audio_ever_initialized = true;
-    }
-    mix_sdl_initialized_ = true;
-    // ... rest of the function unchanged
-  void SDLAudioSystem::ShutdownMixDevice() {
-    if (mix_device_id_ != static_cast<uint32_t>(-1)) {
-      SDL_CloseAudioDevice(mix_device_id_);
-      mix_device_id_ = static_cast<uint32_t>(-1);
-    }
-    // Do not call SDL_QuitSubSystem(SDL_INIT_AUDIO) here.
-    // On iOS, the CoreAudio backend cannot survive a subsystem
-    // quit/reinit within the same process lifetime.
-    mix_sdl_initialized_ = false;
-    for (size_t i = 0; i < kMixSlotCount; ++i) {
-      MixSlotShutdown(i);
-    }
-  }
+  bool InitializeMixDevice();
+  void ShutdownMixDevice();
 
   static void MixCallback(void* userdata, uint8_t* stream, int len);
 #endif  // XE_PLATFORM_IOS
