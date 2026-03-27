@@ -198,15 +198,6 @@ dword_result_t XAudioSubmitRenderDriverFrame_entry(lpunknown_t driver_ptr,
                                                     lpunknown_t samples_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  // Temporary diagnostic: log every 500 frames to confirm the game is
-  // submitting audio frames during gameplay.
-  static std::atomic<uint32_t> sFrameCount(0);
-  uint32_t count = ++sFrameCount;
-  if (count % 500 == 0) {
-    XELOGD("XAudioSubmitRenderDriverFrame: {} frames submitted (client {})",
-           count, driver_ptr.guest_address() & 0x0000FFFF);
-  }
-
   auto audio_system = kernel_state()->emulator()->audio_system();
   auto samples =
       kernel_state()->memory()->TranslateVirtual<float*>(samples_ptr);
