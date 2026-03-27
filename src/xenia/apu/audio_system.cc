@@ -9,6 +9,10 @@
 
 #include "xenia/apu/audio_system.h"
 
+#if XE_PLATFORM_IOS
+#include <pthread.h>
+#endif
+
 #include "xenia/apu/apu_flags.h"
 #include "xenia/apu/audio_driver.h"
 #include "xenia/apu/xma_decoder.h"
@@ -88,7 +92,13 @@ X_STATUS AudioSystem::Setup(kernel::KernelState* kernel_state) {
 }
 
 void AudioSystem::WorkerThreadMain() {
+#if XE_PLATFORM_IOS
+  pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
+
+  // Initialize driver and ringbuffer.
   Initialize();
+  // ... rest unchanged
 
   while (worker_running_) {
     auto result =
