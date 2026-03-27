@@ -790,6 +790,7 @@ void EmulatorAppIOS::EmulatorThread(const std::filesystem::path& game_path,
     XELOGI("iOS: Game launched successfully");
     emulator_->WaitUntilExit();
     XELOGI("iOS: Game execution finished (exit wait completed)");
+    emulator_cpu_initialized_.store(false, std::memory_order_release);
   }
 }
 
