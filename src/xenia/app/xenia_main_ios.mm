@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -822,11 +823,12 @@ void EmulatorAppIOS::EmulatorThread(const std::filesystem::path& game_path,
     }
 
     XELOGI("iOS: Game launched successfully");
-    emulator_->WaitUntilExit();
-    XELOGI("iOS: Game execution finished (exit wait completed)");
-    emulator_cpu_initialized_.store(false, std::memory_order_release);
-  }
-}
+        emulator_->WaitUntilExit();
+        XELOGI("iOS: Game execution finished (exit wait completed)");
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        emulator_cpu_initialized_.store(false, std::memory_order_release);
+      }
+    }
 
 std::unique_ptr<apu::AudioSystem> EmulatorAppIOS::CreateAudioSystem(
     cpu::Processor* processor) {
