@@ -8,7 +8,7 @@ workflows:
       groups:
          - Granger
       vars:
-        BUNDLE_ID: "YRU4RBPYN8.app.plum9729.kale3496"
+        BUNDLE_ID: "app.plum9729.kale3496"
       xcode: latest
 
     scripts:
