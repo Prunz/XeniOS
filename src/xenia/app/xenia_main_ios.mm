@@ -756,6 +756,20 @@ void EmulatorAppIOS::EmulatorThread(const std::filesystem::path& game_path,
 
   if (!game_path.empty()) {
     auto abs_path = std::filesystem::absolute(game_path);
+    
+        // If path doesn't exist but parent is an .iso file, the xex is
+        // inside a disc image — use the .iso as the launch path instead.
+        // cvars::launch_module is already set to the correct module name.
+        if (!std::filesystem::exists(abs_path)) {
+        auto parent = abs_path.parent_path();
+        if (std::filesystem::exists(parent) && parent.extension() == ".iso") {
+            XELOGI("iOS: Rewrote launch path .iso/xex -> .iso (module={})",
+                   cvars::launch_module);
+            abs_path = parent;
+        }
+    }
+
+
     XELOGI("iOS: Launching game: {}", abs_path);
 
     auto xam = emulator_->kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
