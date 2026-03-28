@@ -13,12 +13,7 @@ project("xenia-kernel")
     "ASIO_STANDALONE",
     "ASIO_NO_DEPRECATED",
   })
-  filter("platforms:Windows-*")
-    defines({
-      "_WIN32_WINNT=0x0A00",  -- Windows 10+ for Asio
-      "_WINSOCK_DEPRECATED_NO_WARNINGS",  -- Suppress deprecated Winsock API warnings
-    })
-  filter({})
+
   filter("platforms:iOS-*")
     links({
       "aes_128",
@@ -31,8 +26,20 @@ project("xenia-kernel")
       "xenia-hid",
       "xenia-vfs",
     })
-    linkoptions({ "-L$(SDKROOT)/usr/lib", "-lcurl" })
+    sysincludedirs({
+      project_root.."/third_party/rapidjson/include",
+      project_root.."/build/libcurl-ios/include",
+    })
+    libdirs({
+      project_root.."/build/libcurl-ios/lib",
+    })
+    linkoptions({ "-lcurl" })
+
   filter("platforms:Windows-*")
+    defines({
+      "_WIN32_WINNT=0x0A00",
+      "_WINSOCK_DEPRECATED_NO_WARNINGS",
+    })
     links({
       "aes_128",
       "fmt",
@@ -45,16 +52,11 @@ project("xenia-kernel")
       "xenia-hid",
       "xenia-vfs",
     })
-  filter("platforms:iOS-*")
-    sysincludedirs({
-      project_root.."/third_party/rapidjson/include",
-    })
-    linkoptions({ "-L$(SDKROOT)/usr/lib", "-lcurl" })
-  filter("platforms:Windows-*")
     sysincludedirs({
       project_root.."/third_party/libcurl/include",
       project_root.."/third_party/rapidjson/include",
     })
+
   filter {}
   defines({
     "X86_FEATURES",
