@@ -800,11 +800,11 @@ dword_result_t NetDll_bind_entry(dword_t caller, dword_t socket_handle,
     return -1;
   }
 
-  N_XSOCKADDR_IN native_name(name);
+  XSOCKADDR_IN native_name = *name;
   XELOGI(
       "NetDll_bind: calling socket->Bind, family={}, port={:04X}, addr={:08X}",
-      native_name.sin_family, uint16_t(native_name.sin_port),
-      uint32_t(native_name.sin_addr));
+      uint16_t(native_name.address_family), uint16_t(native_name.address_port),
+      uint32_t(native_name.address_ip.s_addr));
   X_STATUS status = socket->Bind(&native_name, namelen);
   if (XFAILED(status)) {
     XThread::SetLastError(socket->GetLastWSAError());
@@ -827,7 +827,7 @@ dword_result_t NetDll_connect_entry(dword_t caller, dword_t socket_handle,
     return -1;
   }
 
-  N_XSOCKADDR native_name(name);
+  XSOCKADDR_IN native_name = *reinterpret_cast<const XSOCKADDR_IN*>(name.host_address());
   X_STATUS status = socket->Connect(&native_name, namelen);
   if (XFAILED(status)) {
     XThread::SetLastError(socket->GetLastWSAError());
@@ -872,14 +872,14 @@ dword_result_t NetDll_accept_entry(dword_t caller, dword_t socket_handle,
     return -1;
   }
 
-  N_XSOCKADDR native_addr(addr_ptr);
+  XSOCKADDR_IN native_addr = {};
   int native_len = *addrlen_ptr;
   auto new_socket = socket->Accept(&native_addr, &native_len);
   if (new_socket) {
     addr_ptr->address_family = native_addr.address_family;
-    std::memcpy(addr_ptr->sa_data, native_addr.sa_data, *addrlen_ptr - 2);
+    std::memcpy(addr_ptr->sa_data, &native_addr.address_port,
+                *addrlen_ptr - 2);
     *addrlen_ptr = native_len;
-
     return new_socket->handle();
   } else {
     return -1;
@@ -1023,19 +1023,18 @@ dword_result_t NetDll_recvfrom_entry(dword_t caller, dword_t socket_handle,
     return -1;
   }
 
-  N_XSOCKADDR_IN native_from;
+  XSOCKADDR_IN native_from = {};
   if (from_ptr) {
     native_from = *from_ptr;
   }
   uint32_t native_fromlen = fromlen_ptr ? fromlen_ptr.value() : 0;
   int ret = socket->RecvFrom(buf_ptr, buf_len, flags, &native_from,
                              fromlen_ptr ? &native_fromlen : 0);
-
   if (from_ptr) {
-    from_ptr->sin_family = native_from.sin_family;
-    from_ptr->sin_port = native_from.sin_port;
-    from_ptr->sin_addr = native_from.sin_addr;
-    std::memset(from_ptr->x_sin_zero, 0, sizeof(from_ptr->x_sin_zero));
+    from_ptr->address_family = native_from.address_family;
+    from_ptr->address_port = native_from.address_port;
+    from_ptr->address_ip = native_from.address_ip;
+    std::memset(from_ptr->sa_zero, 0, sizeof(from_ptr->sa_zero));
   }
   if (fromlen_ptr) {
     *fromlen_ptr = native_fromlen;
