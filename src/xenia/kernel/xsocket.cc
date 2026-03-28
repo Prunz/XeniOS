@@ -220,8 +220,8 @@ object_ref<XSocket> XSocket::Accept(XSOCKADDR_IN* name, int* name_len) {
     addrlen = byte_swap(*name_len);
   }
 
-  const uint64_t ret = accept(native_handle_, name ? &sa : nullptr,
-                              name_len ? &addrlen : nullptr);
+  const int ret = accept(native_handle_, name ? &sa : nullptr,
+                         name_len ? &addrlen : nullptr);
   if (ret == -1) {
     return nullptr;
   }
@@ -255,7 +255,7 @@ int XSocket::RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags,
   }
 
   int ret = recvfrom(native_handle_, reinterpret_cast<char*>(buf), buf_len,
-                     flags, from ? &sa : nullptr, (int*)from_len);
+                     flags, from ? &sa : nullptr, (socklen_t*)from_len);
 
   if (from) {
     from->to_guest(&sa);
@@ -280,9 +280,8 @@ int XSocket::PollWSARecvFrom(bool wait, WSARecvFromData receive_async_data) {
   fds->fd = native_handle_;
   fds->events = POLLIN;
 
-  DWORD bytes_received = 0;
-  DWORD flags = receive_async_data.flags;
-  auto buffers = new WSABUF[receive_async_data.num_buffers];
+  uint32_t bytes_received = 0;
+  uint32_t flags = receive_async_data.flags;
 
   int ret;
   do {
@@ -292,7 +291,8 @@ int XSocket::PollWSARecvFrom(bool wait, WSARecvFromData receive_async_data) {
     ret = poll(fds, 1, wait ? 1000 : 0);
 #endif
 
-    if (receive_async_data.overlapped->offset_high & 2) {
+    if (static_cast<uint32_t>(receive_async_data.overlapped->offset_high) &
+        2) {
       receive_async_data.overlapped->internal_high =
           (uint32_t)X_WSAError::X_WSA_OPERATION_ABORTED;
       ret = -1;
@@ -301,7 +301,7 @@ int XSocket::PollWSARecvFrom(bool wait, WSARecvFromData receive_async_data) {
   } while (ret == 0 && wait);
 
   if (ret < 0) {
-    receive_async_data.overlapped->internal_high = WSAGetLastError();
+    receive_async_data.overlapped->internal_high = GetLastWSAError();
     XELOGE("XSocket receive thread failed polling with error {}",
            static_cast<uint32_t>(receive_async_data.overlapped->internal_high));
     goto threadexit;
@@ -313,75 +313,81 @@ int XSocket::PollWSARecvFrom(bool wait, WSARecvFromData receive_async_data) {
   }
 
 #ifdef XE_PLATFORM_WIN32
-  for (auto i = 0u; i < receive_async_data.num_buffers; i++) {
-    buffers[i].len = receive_async_data.buffers[i].len;
-    buffers[i].buf =
-        reinterpret_cast<CHAR*>(kernel_state()->memory()->TranslateVirtual(
-            receive_async_data.buffers[i].buf_ptr));
-  }
-
   {
-    std::unique_lock socket_lock(receive_socket_mutex_);
+    auto win_buffers = new WSABUF[receive_async_data.num_buffers];
+    for (auto i = 0u; i < receive_async_data.num_buffers; i++) {
+      win_buffers[i].len = receive_async_data.buffers[i].len;
+      win_buffers[i].buf =
+          reinterpret_cast<CHAR*>(kernel_state()->memory()->TranslateVirtual(
+              receive_async_data.buffers[i].buf_ptr));
+    }
 
+    std::unique_lock socket_lock(receive_socket_mutex_);
     sockaddr* sa = nullptr;
     if (receive_async_data.from) {
       sockaddr addr = receive_async_data.from->to_host();
       sa = const_cast<sockaddr*>(&addr);
     }
 
-    ret = ::WSARecvFrom(native_handle_, buffers, receive_async_data.num_buffers,
-                        &bytes_received, &flags, sa,
-                        (LPINT)receive_async_data.from_len, nullptr, nullptr);
+    ret =
+        ::WSARecvFrom(native_handle_, win_buffers, receive_async_data.num_buffers,
+                      &bytes_received, &flags, sa,
+                      (LPINT)receive_async_data.from_len, nullptr, nullptr);
     if (ret < 0) {
       receive_async_data.overlapped->internal_high = GetLastWSAError();
     } else {
       receive_async_data.overlapped->internal = bytes_received;
     }
-    receive_async_data.from->to_guest(sa);
-    socket_lock.unlock();
-  }
-
-  receive_async_data.overlapped->offset = flags;
-#else
-  auto buffers = new iovec[receive_async_data.num_buffers];
-  for (auto i = 0u; i < receive_async_data.num_buffers; i++) {
-    buffers[i].iov_len = receive_async_data.buffers[i].len;
-    buffers[i].iov_base = kernel_state()->memory()->TranslateVirtual(
-        receive_async_data.buffers[i].buf_ptr);
-  }
-
-  sockaddr_storage n_from{};
-  socklen_t n_from_len = sizeof(n_from);
-
-  msghdr msg;
-  std::memset(&msg, 0, sizeof(msg));
-  msg.msg_name = &n_from;
-  msg.msg_namelen = n_from_len;
-  msg.msg_iov = buffers;
-  msg.msg_iovlen = receive_async_data.num_buffers;
-
-  {
-    std::unique_lock socket_lock(receive_socket_mutex_);
-    ret = recvmsg(native_handle_, &msg, receive_async_data.flags);
-    if (ret < 0) {
-      receive_async_data.overlapped->internal_high = GetLastWSAError();
-    } else {
-      receive_async_data.overlapped->internal = ret;
+    if (receive_async_data.from) {
+      receive_async_data.from->to_guest(sa);
     }
     socket_lock.unlock();
+    delete[] win_buffers;
   }
-
-  flags = 0;
-  if (msg.msg_flags & MSG_TRUNC) flags |= MSG_PARTIAL;
-  if (msg.msg_flags & MSG_OOB) flags |= MSG_OOB;
   receive_async_data.overlapped->offset = flags;
+#else
+  {
+    sockaddr_storage n_from{};
+    socklen_t n_from_len = sizeof(n_from);
 
-  if (ret >= 0) {
-    SetLastWSAError((X_WSAError)0);
-    ret = 0;
+    auto posix_buffers = new iovec[receive_async_data.num_buffers];
+    for (auto i = 0u; i < receive_async_data.num_buffers; i++) {
+      posix_buffers[i].iov_len = receive_async_data.buffers[i].len;
+      posix_buffers[i].iov_base = kernel_state()->memory()->TranslateVirtual(
+          receive_async_data.buffers[i].buf_ptr);
+    }
+
+    msghdr msg;
+    std::memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &n_from;
+    msg.msg_namelen = n_from_len;
+    msg.msg_iov = posix_buffers;
+    msg.msg_iovlen = receive_async_data.num_buffers;
+
+    {
+      std::unique_lock socket_lock(receive_socket_mutex_);
+      ret = recvmsg(native_handle_, &msg, receive_async_data.flags);
+      if (ret < 0) {
+        receive_async_data.overlapped->internal_high = GetLastWSAError();
+      } else {
+        receive_async_data.overlapped->internal = ret;
+      }
+      socket_lock.unlock();
+    }
+
+    flags = 0;
+    // MSG_PARTIAL is Windows-only; use MSG_TRUNC on POSIX
+    if (msg.msg_flags & MSG_TRUNC) flags |= MSG_TRUNC;
+    if (msg.msg_flags & MSG_OOB) flags |= MSG_OOB;
+    receive_async_data.overlapped->offset = flags;
+
+    if (ret >= 0) {
+      SetLastWSAError((X_WSAError)0);
+      ret = 0;
+    }
+    delete[] posix_buffers;
   }
 #endif
-  delete[] buffers;
 
 threadexit:
   std::unique_lock lock(receive_mutex_);
@@ -389,7 +395,8 @@ threadexit:
     delete[] receive_async_data.buffers;
   }
 
-  receive_async_data.overlapped->offset_high |= 1;
+  receive_async_data.overlapped->offset_high =
+      static_cast<uint32_t>(receive_async_data.overlapped->offset_high) | 1;
 
   if (wait && receive_async_data.overlapped->event_handle) {
     xboxkrnl::xeNtSetEvent(receive_async_data.overlapped->event_handle,

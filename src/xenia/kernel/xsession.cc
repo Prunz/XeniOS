@@ -1003,12 +1003,9 @@ void XSession::FillSessionProperties(
     std::vector<xam::Property> properties, uint32_t filter_properties_count,
     xam::XUSER_PROPERTY* filter_properties_ptr, XSESSION_SEARCHRESULT* result) {
   if (matchmaking_query) {
-    const auto paramaters = matchmaking_query->GetParameters(matchmaking_index);
-    const auto filters_left =
-        matchmaking_query->GetFiltersLeft(matchmaking_index);
-    const auto filters_right =
-        matchmaking_query->GetFiltersRight(matchmaking_index);
-    const auto returns = matchmaking_query->GetReturns(matchmaking_index);
+    const auto paramaters = matchmaking_query->GetParameters();
+    const auto returns = matchmaking_query->GetReturns();
+    const auto filters = matchmaking_query->GetFilters();
   }
 
   result->properties_count = static_cast<uint32_t>(properties.size());
