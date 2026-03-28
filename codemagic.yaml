@@ -20,7 +20,7 @@ workflows:
         script: |
           git submodule update --init --depth=1 -j$(sysctl -n hw.ncpu) \
             $(grep -oE 'path = .+' .gitmodules | sed 's/path = //' | \
-              grep -v 'premake-androidndk\|premake-export-compile-commands\|DirectXShaderCompiler')
+              grep -v 'premake-androidndk\|premake-export-compile-commands\|DirectXShaderCompiler\|miniupnp\|wolfssl\|binutils-ppc-cygwin')
           git -C third_party/DirectXShaderCompiler submodule update --init --depth=1 \
             external/SPIRV-Headers external/SPIRV-Tools
 
