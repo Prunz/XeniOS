@@ -6,7 +6,7 @@ workflows:
 
     environment:
       groups:
-         - Granger
+        - Granger
       vars:
         BUNDLE_ID: "app.plum9729.kale3496"
       xcode: latest
@@ -21,10 +21,8 @@ workflows:
           git submodule update --init --depth=1 -j$(sysctl -n hw.ncpu) \
             $(grep -oE 'path = .+' .gitmodules | sed 's/path = //' | \
               grep -v 'premake-androidndk\|premake-export-compile-commands\|DirectXShaderCompiler\|miniupnp\|wolfssl\|binutils-ppc-cygwin')
-          git -C third_party/DirectXShaderCompiler submodule update --init --depth=1 \
-            external/SPIRV-Headers external/SPIRV-Tools
 
-     - name: Install premake5
+      - name: Install premake5
         script: |
           brew install premake
           mkdir -p tools/build/bin
@@ -32,14 +30,14 @@ workflows:
           chmod +x tools/build/bin/premake5
           echo "Premake5 installed to tools/build/bin/premake5"
           tools/build/bin/premake5 --version
-          
+
       - name: Run premake for iOS
         script: |
           ./xb premake --target_os=ios
 
       - name: Download Metal Toolchain
         script: |
-           xcodebuild -downloadComponent MetalToolchain
+          xcodebuild -downloadComponent MetalToolchain
 
       - name: Build iOS app (unsigned)
         script: |
