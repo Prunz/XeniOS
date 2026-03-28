@@ -52,7 +52,8 @@ X_STATUS XSocket::Initialize(AddressFamily af, Type type, Protocol proto) {
 X_STATUS XSocket::Close() {
   std::unique_lock lock(receive_mutex_);
   if (active_overlapped_ && !(active_overlapped_->offset_high & 1)) {
-    active_overlapped_->offset_high |= 2;
+    active_overlapped_->offset_high =
+        static_cast<uint32_t>(active_overlapped_->offset_high) | 2;
   }
   lock.unlock();
 
@@ -220,7 +221,7 @@ object_ref<XSocket> XSocket::Accept(XSOCKADDR_IN* name, int* name_len) {
     addrlen = byte_swap(*name_len);
   }
 
-  const int ret = accept(native_handle_, name ? &sa : nullptr,
+  const int ret = accept(static_cast<int>(native_handle_), name ? &sa : nullptr,
                          name_len ? &addrlen : nullptr);
   if (ret == -1) {
     return nullptr;
