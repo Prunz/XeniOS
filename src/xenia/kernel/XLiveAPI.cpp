@@ -390,9 +390,7 @@ void XLiveAPI::Init() {
     const uint32_t index = 0;
     const auto profile = kernel_state()->xam_state()->GetUserProfile(index);
 
-    if (profile->GetFriends().size() < dummy_friends_count) {
-      profile->AddDummyFriends(dummy_friends_count);
-    }
+    // XeniOS: GetFriends/AddDummyFriends not implemented in UserProfile.
   }
 
   initialized_ = InitState::Success;
@@ -688,7 +686,7 @@ std::unique_ptr<HTTPResponseObjectJSON> XLiveAPI::RegisterPlayer() {
     return response;
   }
 
-  uint64_t xuid = user_profile->GetOnlineXUID();
+  uint64_t xuid = user_profile->xuid();
 
   // Register offline profile for systemlink usage
   if (cvars::network_mode == NETWORK_MODE::LAN &&
@@ -1693,7 +1691,7 @@ void XLiveAPI::SetPresence() {
 
       if (user_profile->IsLiveEnabled()) {
         profile_presence->XUID(user_profile->GetOnlineXUID());
-        profile_presence->RichPresence(user_profile->GetPresenceString());
+        profile_presence->RichPresence("");  // XeniOS: GetPresenceString not implemented
       }
 
       presence->AddPresence(*profile_presence);
@@ -1794,29 +1792,14 @@ XLiveAPI::GetOfflineFriendsPresence(const uint32_t user_index) {
 
   std::map<uint64_t, FriendPresenceObjectJSON> peer_presences = {};
 
-  for (uint32_t count = 1; const auto& xuid : profile->GetFriendsXUIDs()) {
-    FriendPresenceObjectJSON peer = {};
-    peer.Gamertag(std::format("Friend {}", count));
-    peer.XUID(xuid);
-
-    count++;
-    peer_presences[xuid] = peer;
-  }
-
+  // XeniOS: GetFriendsXUIDs not implemented in UserProfile.
   return peer_presences;
 }
-
 std::map<uint64_t, FriendPresenceObjectJSON> XLiveAPI::GetOnlineFriendsPresence(
     const uint32_t user_index) {
-  const auto profile = kernel_state()->xam_state()->GetUserProfile(user_index);
-
   std::map<uint64_t, FriendPresenceObjectJSON> peer_presences = {};
-
-  const auto freinds_presence =
-      XLiveAPI::GetFriendsPresence(profile->GetFriendsXUIDs())
-          ->PlayersPresence();
-
-  for (const auto& presence : freinds_presence) {
+  // XeniOS: GetFriendsXUIDs not implemented in UserProfile.
+  for (const auto& presence : std::vector<FriendPresenceObjectJSON>{}) {
     peer_presences[presence.XUID()] = presence;
   }
 
@@ -1989,7 +1972,7 @@ void XLiveAPI::SelectNetworkInterface() {
 
   // If upnp is disabled or upnp_root is empty fallback to winsock
   if (cvars::upnp && !cvars::upnp_root.empty()) {
-    local_ip = ip_to_sockaddr(UPnP::GetLocalIP());
+    local_ip = ip_to_sockaddr(XLiveAPI::upnp_handler->GetLocalIP());
   } else {
     local_ip = WinsockGetLocalIP();
   }
