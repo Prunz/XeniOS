@@ -221,8 +221,11 @@ object_ref<XSocket> XSocket::Accept(XSOCKADDR_IN* name, int* name_len) {
     addrlen = byte_swap(*name_len);
   }
 
-  const int ret = accept(static_cast<int>(native_handle_), name ? &sa : nullptr,
-                         name_len ? &addrlen : nullptr);
+  socklen_t sa_len = static_cast<socklen_t>(addrlen);
+  const int ret = accept(static_cast<int>(native_handle_),
+                         name ? &sa : nullptr,
+                         name_len ? &sa_len : nullptr);
+  addrlen = static_cast<int>(sa_len);
   if (ret == -1) {
     return nullptr;
   }

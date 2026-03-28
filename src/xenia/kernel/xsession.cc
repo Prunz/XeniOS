@@ -64,7 +64,7 @@ X_RESULT XSession::CreateSession(uint32_t user_index, uint8_t public_slots,
   // to live.
   if (HasXboxLiveFeatureFlags() &&
       user_profile->signin_state() !=
-          xam::SignInState::SignedInToLive) {
+          static_cast<uint32_t>(xam::SignInState::SignedInToLive)) {
     return X_ONLINE_E_SESSION_NOT_LOGGED_ON;
   }
 
