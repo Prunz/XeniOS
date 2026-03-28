@@ -196,7 +196,11 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // Allow offline session creation, but do not allow Xbox Live featured
       // session creation.
 
-      if (IsXboxLiveSession(static_cast<SessionFlags>(flags))) {
+      // XeniOS: IsXboxLiveSession replaced with inline flag check.
+      const uint8_t live_features =
+          SessionFlags::PRESENCE | SessionFlags::STATS |
+          SessionFlags::MATCHMAKING | SessionFlags::ARBITRATION;
+      if (flags && (static_cast<SessionFlags>(flags) & live_features)) {
         return 0x80155209;  // X_ONLINE_E_SESSION_NOT_LOGGED_ON
       }
 

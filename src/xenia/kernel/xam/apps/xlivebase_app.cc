@@ -1054,7 +1054,7 @@ X_HRESULT XLiveBaseApp::XInviteGetAcceptedInfo(uint32_t buffer_ptr,
     const auto profile = kernel_state()->xam_state()->GetUserProfile(i);
 
     if (profile && profile->IsLiveEnabled()) {
-      local_members.insert(profile->GetOnlineXUID());
+      local_members.insert(profile->xuid());
     }
   }
 
@@ -1153,7 +1153,7 @@ X_HRESULT XLiveBaseApp::XUserMuteListQuery(uint32_t buffer_ptr,
   xe::be<uint32_t>* mute_list_ptr =
       memory_->TranslateVirtual<xe::be<uint32_t>*>(buffer_length);
 
-  *mute_list_ptr = user_profile->IsPlayerMuted(remote_player_ptr->remote_xuid);
+  *mute_list_ptr = 0;  // XeniOS: IsPlayerMuted not implemented
 
   return X_E_SUCCESS;
 }
@@ -1178,7 +1178,7 @@ X_HRESULT XLiveBaseApp::XUserMuteListAdd(uint32_t buffer_ptr) {
   auto user_profile = kernel_state()->xam_state()->GetUserProfile(
       remote_player_ptr->user_index);
 
-  bool muted = user_profile->MutePlayer(remote_player_ptr->remote_xuid);
+  bool muted = false;  // XeniOS: MutePlayer not implemented
 
   if (muted) {
     kernel_state()->BroadcastNotification(kXNotificationSystemMuteListChanged,
@@ -1208,7 +1208,7 @@ X_HRESULT XLiveBaseApp::XUserMuteListRemove(uint32_t buffer_ptr) {
   auto user_profile = kernel_state()->xam_state()->GetUserProfile(
       remote_player_ptr->user_index);
 
-  bool unmuted = user_profile->UnmutePlayer(remote_player_ptr->remote_xuid);
+  bool unmuted = false;  // XeniOS: UnmutePlayer not implemented
 
   if (unmuted) {
     kernel_state()->BroadcastNotification(kXNotificationSystemMuteListChanged,
@@ -1438,7 +1438,7 @@ X_HRESULT XLiveBaseApp::XStorageEnumerate(uint32_t buffer_ptr) {
 
     if (folder) {
       for (const auto& child : folder->children()) {
-        if (!(child->attributes() & FILE_ATTRIBUTE_DIRECTORY)) {
+        if (!(child->attributes() & X_FILE_ATTRIBUTE_DIRECTORY)) {
           total_num_items += 1;
         }
       }
@@ -1457,7 +1457,7 @@ X_HRESULT XLiveBaseApp::XStorageEnumerate(uint32_t buffer_ptr) {
         entry = folder->IterateChildren(enumeration_engine, &itr_index);
 
         if (entry) {
-          if (!(entry->attributes() & FILE_ATTRIBUTE_DIRECTORY)) {
+          if (!(entry->attributes() & X_FILE_ATTRIBUTE_DIRECTORY)) {
             entries.push_back(entry);
           }
         }
@@ -1572,7 +1572,7 @@ X_HRESULT XLiveBaseApp::XStringVerify(uint32_t buffer_ptr) {
           std::to_address(responses_ptr + 1));
 
   HRESULT* response_results_ptr =
-      kernel_state_->memory()->TranslateVirtual<HRESULT*>(
+      kernel_state_->memory()->TranslateVirtual<X_HRESULT*>(
           response_result_address);
 
   for (uint32_t i = 0; i < unmarshaller->NumStrings(); i++) {
@@ -1705,7 +1705,7 @@ X_HRESULT XLiveBaseApp::XStorageDownloadToMemory(uint32_t buffer_ptr) {
   uint64_t xuid_owner = 0;
 
   if (user_profile) {
-    xuid_owner = user_profile->GetOnlineXUID();
+    xuid_owner = user_profile->xuid();
   }
 
   std::string item_to_download = xe::to_utf8(unmarshaller->ServerPath());
@@ -1727,7 +1727,7 @@ X_HRESULT XLiveBaseApp::XStorageDownloadToMemory(uint32_t buffer_ptr) {
       if (buffer.size_bytes() > download_buffer.size_bytes()) {
         XELOGI("{}: Provided file size {}b is larger than expected {}b",
                __func__, buffer.size_bytes(), download_buffer.size_bytes());
-        return X_E_INSUFFICIENT_BUFFER;
+        return X_HRESULT_FROM_WIN32(0x7A);  // ERROR_INSUFFICIENT_BUFFER
       }
 
       memcpy(download_buffer.data(), buffer.data(), buffer.size_bytes());
@@ -1770,7 +1770,7 @@ X_HRESULT XLiveBaseApp::XStorageDownloadToMemory(uint32_t buffer_ptr) {
         if (bytes_read > unmarshaller->BufferSize()) {
           XELOGI("{}: Provided file size {}b is larger than expected {}b",
                  __func__, bytes_read, unmarshaller->BufferSize());
-          return X_E_INSUFFICIENT_BUFFER;
+          return X_HRESULT_FROM_WIN32(0x7A);  // ERROR_INSUFFICIENT_BUFFER
         }
 
         memcpy(download_buffer.data(), file_data.data(), bytes_read);
@@ -1935,7 +1935,7 @@ X_HRESULT XLiveBaseApp::XStorageBuildServerPath(uint32_t buffer_ptr) {
     xuid = kernel_state()
                ->xam_state()
                ->GetUserProfile(args->user_index.get())
-               ->GetOnlineXUID();
+               ->xuid();
   }
 
   uint8_t* filename_ptr =
@@ -2213,7 +2213,7 @@ X_HRESULT XLiveBaseApp::XUserFindUsers(uint32_t buffer_ptr) {
     const uint64_t xuid = xe::byte_swap(user.xuid);
 
     const auto user_profile =
-        kernel_state()->xam_state()->GetUserProfileLive(xuid);
+        kernel_state()->xam_state()->GetUserProfile(xuid);
 
     // Only lookup non-local users
     if (user_profile) {

@@ -54,7 +54,7 @@ workflows:
             DEVELOPMENT_TEAM= \
             PROVISIONING_PROFILE_SPECIFIER= \
             CODE_SIGN_IDENTITY= \
-            IPHONEOS_DEPLOYMENT_TARGET=16.0
+            IPHONEOS_DEPLOYMENT_TARGET=16.3
 
       - name: Re-sign IPA with developer certificate
         script: |
