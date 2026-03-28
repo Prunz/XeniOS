@@ -4,39 +4,30 @@ project("libcurl")
   kind("StaticLib")
   language("C")
 
-  defines({
-    "BUILDING_LIBCURL",
-    "CURL_STATICLIB",
-  })
-
-  includedirs({
-    "libcurl/lib",
-    "libcurl/include",
-  })
-
-  files({
-    "libcurl/lib/**.h",
-    "libcurl/lib/**.c",
-  })
-
-  -- Windows-specific SSL and linker config
+  -- Windows: build from source
   filter("platforms:Windows-*")
-    links({ "Wldap32", "crypt32", "ws2_32" })
     defines({
+      "BUILDING_LIBCURL",
+      "CURL_STATICLIB",
       "USE_SCHANNEL",
       "USE_WINDOWS_SSPI",
     })
+    links({ "Wldap32", "crypt32", "ws2_32" })
+    includedirs({
+      "libcurl/lib",
+      "libcurl/include",
+    })
+    files({
+      "libcurl/lib/**.h",
+      "libcurl/lib/**.c",
+    })
+    filter({"configurations:Release", "platforms:Windows-*"})
+      buildoptions({ "/Os", "/O1" })
+
+  -- iOS: use system curl from the SDK, no source compilation needed
   filter("platforms:iOS-*")
-    defines({
-      "USE_SECTRANSP",
-      "CURL_DISABLE_LDAP",
-      "CURL_DISABLE_LDAPS",
-    })
-    links({
-      "Security.framework",
-      "CoreFoundation.framework",
-    })
-  filter({"configurations:Release", "platforms:Windows-*"})
-    buildoptions({ "/Os", "/O1" })
+    kind("StaticLib")
+    files({})  -- no source files, system curl is used
+    linkoptions({ "-lcurl" })
 
   filter {}

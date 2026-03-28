@@ -31,10 +31,17 @@ project("xenia-kernel")
     "xenia-hid",
     "xenia-vfs",
   })
-  sysincludedirs({
-    project_root.."/third_party/libcurl/include",
-    project_root.."/third_party/rapidjson/include",
-  })
+  filter("platforms:iOS-*")
+    sysincludedirs({
+      project_root.."/third_party/rapidjson/include",
+    })
+    linkoptions({ "-lcurl" })
+  filter("platforms:Windows-*")
+    sysincludedirs({
+      project_root.."/third_party/libcurl/include",
+      project_root.."/third_party/rapidjson/include",
+    })
+  filter {}
   defines({
     "X86_FEATURES",
     "X86_HAVE_XSAVE_INTRIN",
