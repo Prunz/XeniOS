@@ -237,6 +237,7 @@ project("xenia-app")
       "metal-cpp",
       "SDL2",
       "iconv",
+      "curl"
       "CoreFoundation.framework",
       "Foundation.framework",
       "Metal.framework",
@@ -256,6 +257,14 @@ project("xenia-app")
       "CoreGraphics.framework",
       "CoreBluetooth.framework",
     })
+    
+    libdirs({
+      project_root.."/build/libcurl-ios/lib",
+    })
+    sysincludedirs({
+      project_root.."/build/libcurl-ios/include",
+    })
+
     xcodebuildsettings({
       ["INFOPLIST_FILE"] = path.getabsolute("Info_ios.plist"),
       ["IPHONEOS_DEPLOYMENT_TARGET"] = "17.0",
