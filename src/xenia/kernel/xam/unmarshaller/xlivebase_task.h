@@ -1,4 +1,4 @@
-﻿/**
+/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_XAM_UNMARSHALLER_XLIVEBASETASK_H_
 
 #include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xnet.h"
 
 namespace xe {
 namespace kernel {
