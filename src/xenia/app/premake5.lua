@@ -237,7 +237,7 @@ project("xenia-app")
       "metal-cpp",
       "SDL2",
       "iconv",
-      "curl"
+      "curl",
       "CoreFoundation.framework",
       "Foundation.framework",
       "Metal.framework",
