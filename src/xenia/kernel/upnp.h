@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include "xenia/base/platform.h"
 
 #if !XE_PLATFORM_IOS
 
