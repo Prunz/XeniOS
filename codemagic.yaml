@@ -25,6 +25,7 @@ workflows:
 
       - name: Build premake5 from source
         script: |
+          touch .ios_target
           git submodule update --init --depth=1 third_party/premake-core
           cd third_party/premake-core
           make -f Bootstrap.mak osx
@@ -37,6 +38,7 @@ workflows:
       - name: Run premake for iOS
         script: |
           touch .ios_target
+          export XE_TARGET_IOS=1
           ./xb premake --target_os=ios
 
       - name: Download Metal Toolchain
