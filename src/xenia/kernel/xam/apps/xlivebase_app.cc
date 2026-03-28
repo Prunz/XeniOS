@@ -956,6 +956,7 @@ void XLiveBaseApp::UpdatePresenceXUIDs(const std::vector<uint64_t>& xuids,
 
     // XeniOS: Friends list APIs not implemented in UserProfile.
     (void)xuid;
+  }
 }
 
 X_HRESULT XLiveBaseApp::XInviteSend(uint32_t buffer_ptr) {

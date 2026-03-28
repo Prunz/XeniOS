@@ -12,6 +12,7 @@
 
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/app_manager.h"
+#include "xenia/kernel/xnet.h"
 
 namespace xe {
 namespace kernel {
