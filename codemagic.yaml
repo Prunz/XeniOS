@@ -36,6 +36,7 @@ workflows:
 
       - name: Run premake for iOS
         script: |
+          touch .ios_target
           ./xb premake --target_os=ios
 
       - name: Download Metal Toolchain
