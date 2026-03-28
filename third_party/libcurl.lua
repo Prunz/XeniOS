@@ -4,7 +4,6 @@ project("libcurl")
   kind("StaticLib")
   language("C")
 
-  -- Windows: build from source
   filter("platforms:Windows-*")
     defines({
       "BUILDING_LIBCURL",
@@ -21,13 +20,9 @@ project("libcurl")
       "libcurl/lib/**.h",
       "libcurl/lib/**.c",
     })
-    filter({"configurations:Release", "platforms:Windows-*"})
-      buildoptions({ "/Os", "/O1" })
-
-  -- iOS: use system curl from the SDK, no source compilation needed
+  filter({"configurations:Release", "platforms:Windows-*"})
+    buildoptions({ "/Os", "/O1" })
   filter("platforms:iOS-*")
-    kind("StaticLib")
-    files({})  -- no source files, system curl is used
-    linkoptions({ "-lcurl" })
-
+    files({})
+    kind("None")
   filter {}

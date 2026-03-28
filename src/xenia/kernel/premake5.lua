@@ -19,18 +19,32 @@ project("xenia-kernel")
       "_WINSOCK_DEPRECATED_NO_WARNINGS",  -- Suppress deprecated Winsock API warnings
     })
   filter({})
-  links({
-    "aes_128",
-    "fmt",
-    "libcurl",
-    "zlib-ng",
-    "pugixml",
-    "xenia-apu",
-    "xenia-base",
-    "xenia-cpu",
-    "xenia-hid",
-    "xenia-vfs",
-  })
+  filter("platforms:iOS-*")
+    links({
+      "aes_128",
+      "fmt",
+      "zlib-ng",
+      "pugixml",
+      "xenia-apu",
+      "xenia-base",
+      "xenia-cpu",
+      "xenia-hid",
+      "xenia-vfs",
+    })
+    linkoptions({ "-lcurl" })
+  filter("platforms:Windows-*")
+    links({
+      "aes_128",
+      "fmt",
+      "libcurl",
+      "zlib-ng",
+      "pugixml",
+      "xenia-apu",
+      "xenia-base",
+      "xenia-cpu",
+      "xenia-hid",
+      "xenia-vfs",
+    })
   filter("platforms:iOS-*")
     sysincludedirs({
       project_root.."/third_party/rapidjson/include",
