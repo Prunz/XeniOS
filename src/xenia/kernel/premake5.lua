@@ -31,7 +31,7 @@ project("xenia-kernel")
       "xenia-hid",
       "xenia-vfs",
     })
-    linkoptions({ "-lcurl" })
+    linkoptions({ "-L$(SDKROOT)/usr/lib", "-lcurl" })
   filter("platforms:Windows-*")
     links({
       "aes_128",
@@ -49,7 +49,7 @@ project("xenia-kernel")
     sysincludedirs({
       project_root.."/third_party/rapidjson/include",
     })
-    linkoptions({ "-lcurl" })
+    linkoptions({ "-L$(SDKROOT)/usr/lib", "-lcurl" })
   filter("platforms:Windows-*")
     sysincludedirs({
       project_root.."/third_party/libcurl/include",
