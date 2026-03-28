@@ -445,14 +445,9 @@ X_HRESULT XLiveBaseApp::XPresenceSubscribe(uint32_t buffer_ptr,
       continue;
     }
 
-    if (profile->IsFriend(xuid)) {
-      continue;
-    }
-
+    // XeniOS: Friends list APIs not implemented in UserProfile.
     if (ACTIVE_TITLE_SUBSCRIPTIONS <= MAX_TITLE_SUBSCRIPTIONS) {
       ACTIVE_TITLE_SUBSCRIPTIONS++;
-
-      profile->SubscribeFromXUID(xuid);
     } else {
       XELOGI("Max subscriptions reached");
     }
@@ -521,14 +516,9 @@ X_HRESULT XLiveBaseApp::XPresenceUnsubscribe(uint32_t buffer_ptr,
       continue;
     }
 
-    if (profile->IsFriend(xuid)) {
-      continue;
-    }
-
+    // XeniOS: Friends list APIs not implemented in UserProfile.
     if (ACTIVE_TITLE_SUBSCRIPTIONS > 0) {
       ACTIVE_TITLE_SUBSCRIPTIONS--;
-
-      profile->UnsubscribeFromXUID(xuid);
     }
   }
 
@@ -633,15 +623,8 @@ X_HRESULT XLiveBaseApp::XPresenceCreateEnumerator(uint32_t buffer_ptr,
       continue;
     }
 
-    if (profile->IsFriend(xuid)) {
-      auto item = e->AppendItem();
-
-      profile->GetFriendPresenceFromXUID(xuid, item);
-    } else if (profile->IsSubscribed(xuid)) {
-      auto item = e->AppendItem();
-
-      profile->GetSubscriptionFromXUID(xuid, item);
-    }
+    // XeniOS: Friends list APIs not implemented in UserProfile.
+    (void)xuid;
   }
 
   uint32_t* buffer_size_ptr =
@@ -934,13 +917,8 @@ X_HRESULT XLiveBaseApp::XFriendsCreateEnumerator(uint32_t buffer_ptr,
   for (auto i = friends_starting_index; i < e->items_per_enumerate(); i++) {
     X_ONLINE_FRIEND peer = {};
 
-    const bool is_friend = profile->GetFriendFromIndex(i, &peer);
-
-    if (is_friend) {
-      auto item = e->AppendItem();
-
-      memcpy(item, &peer, sizeof(X_ONLINE_FRIEND));
-    }
+    // XeniOS: GetFriendFromIndex not implemented in UserProfile.
+    (void)peer;
   }
 
   const uint32_t friends_buffer_size =
@@ -959,9 +937,8 @@ void XLiveBaseApp::UpdateFriendPresence(const uint32_t user_index) {
 
   auto const profile = kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  const std::vector<uint64_t> peer_xuids = profile->GetFriendsXUIDs();
-
-  UpdatePresenceXUIDs(peer_xuids, user_index);
+  // XeniOS: GetFriendsXUIDs not implemented in UserProfile.
+  UpdatePresenceXUIDs({}, user_index);
 }
 
 void XLiveBaseApp::UpdatePresenceXUIDs(const std::vector<uint64_t>& xuids,
@@ -977,22 +954,8 @@ void XLiveBaseApp::UpdatePresenceXUIDs(const std::vector<uint64_t>& xuids,
   for (const auto& player : presences->PlayersPresence()) {
     const uint64_t xuid = player.XUID();
 
-    if (!profile->IsFriend(xuid) && !profile->IsSubscribed(xuid)) {
-      XELOGI("Requested unknown peer presence: {} - {:016X}", player.Gamertag(),
-             xuid);
-      continue;
-    }
-
-    if (profile->IsFriend(xuid)) {
-      X_ONLINE_FRIEND peer = player.GetFriendPresence();
-
-      profile->SetFriend(peer);
-    } else if (profile->IsSubscribed(xuid)) {
-      X_ONLINE_PRESENCE presence = player.ToOnlineRichPresence();
-
-      profile->SetSubscriptionFromXUID(xuid, &presence);
-    }
-  }
+    // XeniOS: Friends list APIs not implemented in UserProfile.
+    (void)xuid;
 }
 
 X_HRESULT XLiveBaseApp::XInviteSend(uint32_t buffer_ptr) {
@@ -1053,8 +1016,8 @@ X_HRESULT XLiveBaseApp::XInviteGetAcceptedInfo(uint32_t buffer_ptr,
   const auto user_profile =
       kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  memcpy(invite_info, user_profile->GetSelfInvite(), sizeof(X_INVITE_INFO));
-  memset(user_profile->GetSelfInvite(), 0, sizeof(X_INVITE_INFO));
+  // XeniOS: GetSelfInvite not implemented in UserProfile.
+  memset(invite_info, 0, sizeof(X_INVITE_INFO));
 
   const std::vector<uint64_t> xuids = {invite_info->xuid_inviter};
 
