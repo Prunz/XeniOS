@@ -1,4 +1,4 @@
-﻿/**
+/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -12,9 +12,9 @@
 
 #define RAPIDJSON_HAS_STDSTRING 1
 
-#include <third_party/rapidjson/include/rapidjson/document.h>
-#include <third_party/rapidjson/include/rapidjson/prettywriter.h>
-#include <third_party/rapidjson/include/rapidjson/stringbuffer.h>
+#include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
 
 namespace xe {
 namespace kernel {
