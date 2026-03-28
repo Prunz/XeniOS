@@ -1571,7 +1571,7 @@ X_HRESULT XLiveBaseApp::XStringVerify(uint32_t buffer_ptr) {
       kernel_state_->memory()->HostToGuestVirtual(
           std::to_address(responses_ptr + 1));
 
-  HRESULT* response_results_ptr =
+  X_HRESULT* response_results_ptr =
       kernel_state_->memory()->TranslateVirtual<X_HRESULT*>(
           response_result_address);
 
