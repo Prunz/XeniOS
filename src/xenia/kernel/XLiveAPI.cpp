@@ -1,4 +1,4 @@
-﻿/**
+/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -981,7 +981,7 @@ std::unique_ptr<SessionObjectJSON> XLiveAPI::XSessionMigration(
     const auto& profile =
         kernel_state()->xam_state()->GetUserProfile(data->user_index);
 
-    xuid = profile->GetOnlineXUID();
+    xuid = profile->xuid();
   } else {
     XELOGI("New host is remote.");
   }
@@ -1155,7 +1155,7 @@ void XLiveAPI::XSessionCreate(uint64_t sessionId, XGI_SESSION_CREATE* data) {
     const auto& profile =
         kernel_state()->xam_state()->GetUserProfile(data->user_index);
 
-    xuid = profile->GetOnlineXUID();
+    xuid = profile->xuid();
   }
 
   const std::string xuid_str = fmt::format("{:016X}", xuid.get());
@@ -1690,8 +1690,8 @@ void XLiveAPI::SetPresence() {
       FriendPresenceObjectJSON* profile_presence = new FriendPresenceObjectJSON();
 
       if (user_profile->IsLiveEnabled()) {
-        profile_presence->XUID(user_profile->GetOnlineXUID());
-        profile_presence->RichPresence("");  // XeniOS: GetPresenceString not implemented
+        profile_presence->XUID(user_profile->xuid());
+        profile_presence->RichPresence(u"");  // XeniOS: GetPresenceString not implemented
       }
 
       presence->AddPresence(*profile_presence);
