@@ -16,6 +16,13 @@
 #include "xenia/kernel/util/xfiletime.h"
 #include "xenia/kernel/xam/user_data.h"
 
+#ifndef XE_PLATFORM_WIN32
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+typedef char CHAR;
+#endif
+
 #ifdef XE_PLATFORM_WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
 // clang-format off
@@ -428,10 +435,13 @@ struct XSESSION_MEMBER {
   xe::be<uint32_t> Flags;
 
   void SetPrivate() {
-    Flags |= static_cast<uint32_t>(MEMBER_FLAGS::PRIVATE_SLOT);
+    Flags = static_cast<uint32_t>(Flags) |
+            static_cast<uint32_t>(MEMBER_FLAGS::PRIVATE_SLOT);
   }
-
-  void SetZombie() { Flags |= static_cast<uint32_t>(MEMBER_FLAGS::ZOMBIE); }
+  void SetZombie() {
+    Flags = static_cast<uint32_t>(Flags) |
+            static_cast<uint32_t>(MEMBER_FLAGS::ZOMBIE);
+  }
 
   const bool IsPrivate() const {
     return (Flags & static_cast<uint32_t>(MEMBER_FLAGS::PRIVATE_SLOT)) ==
