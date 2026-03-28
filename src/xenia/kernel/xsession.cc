@@ -64,7 +64,7 @@ X_RESULT XSession::CreateSession(uint32_t user_index, uint8_t public_slots,
   // to live.
   if (HasXboxLiveFeatureFlags() &&
       user_profile->signin_state() !=
-          xam::X_USER_SIGNIN_STATE::SignedInToLive) {
+          xam::SignInState::SignedInToLive) {
     return X_ONLINE_E_SESSION_NOT_LOGGED_ON;
   }
 
@@ -295,7 +295,7 @@ X_RESULT XSession::JoinSession(XGI_SESSION_MANAGE* data) {
 
       const auto user_profile =
           kernel_state()->xam_state()->GetUserProfile(user_index);
-      const xe::be<uint64_t> xuid_online = user_profile->GetLogonXUID();
+      const xe::be<uint64_t> xuid_online = user_profile->xuid();
 
       assert_true(IsValidXUID(xuid_online));
 
@@ -311,9 +311,14 @@ X_RESULT XSession::JoinSession(XGI_SESSION_MANAGE* data) {
           XUserMaxUserCount, local_details_.ActualMemberCount + 1);
     } else {
       const xe::be<uint64_t> xuid_online = xuid_array[i];
-      uint8_t user_index =
-          kernel_state()->xam_state()->GetUserIndexAssignedToProfileFromXUID(
-              xuid_online);
+      uint8_t user_index = XUserIndexNone;
+      for (uint32_t idx = 0; idx < XUserMaxUserCount; idx++) {
+        auto* profile = kernel_state()->xam_state()->GetUserProfile(idx);
+        if (profile && profile->xuid() == static_cast<uint64_t>(xuid_online)) {
+          user_index = idx;
+          break;
+        }
+      }
 
       if (user_index == XUserIndexAny) {
         user_index = XUserIndexNone;
@@ -422,7 +427,7 @@ X_RESULT XSession::LeaveSession(XGI_SESSION_MANAGE* data) {
 
       const auto user_profile =
           kernel_state()->xam_state()->GetUserProfile(user_index);
-      const xe::be<uint64_t> xuid_online = user_profile->GetLogonXUID();
+      const xe::be<uint64_t> xuid_online = user_profile->xuid();
 
       assert_true(IsValidXUID(xuid_online));
 
@@ -586,7 +591,7 @@ X_RESULT XSession::MigrateHost(XGI_SESSION_MIGRATE* data) {
       kernel_state_->memory()->TranslateVirtual<XSESSION_INFO*>(
           data->session_info_ptr);
 
-  if (!XLiveAPI::upnp_handler->is_active()) {
+  if (!XLiveAPI::upnp_handler->IsActive()) {
     XELOGI("Migrating without UPnP");
     // return X_E_FAIL;
   }
@@ -771,45 +776,11 @@ X_RESULT XSession::GetSessions(KernelState* kernel_state,
 
   util::XLastMatchmakingQuery* matchmaking_query = nullptr;
 
-  if (kernel_state->emulator()->game_info_database()->HasXLast()) {
-    matchmaking_query = kernel_state->emulator()
-                            ->game_info_database()
-                            ->GetXLast()
-                            ->GetMatchmakingQuery();
-
-    const auto paramaters =
-        matchmaking_query->GetParameters(search_data->proc_index);
-    const auto filters_left =
-        matchmaking_query->GetFiltersLeft(search_data->proc_index);
-    const auto filters_right =
-        matchmaking_query->GetFiltersRight(search_data->proc_index);
-    const auto returns = matchmaking_query->GetReturns(search_data->proc_index);
-
-    XELOGI("Matchmaking Query Name: {}",
-           matchmaking_query->GetName(search_data->proc_index));
-
-    for (uint32_t i = 0; i < search_data->num_ctx; i++) {
-      xam::XUSER_CONTEXT& context = search_contexts_ptr[i];
-
-      auto user =
-          kernel_state->xam_state()->GetUserProfile(search_data->user_index);
-
-      std::u16string context_desc =
-          kernel_state->xam_state()->user_tracker()->GetContextDescription(
-              user->xuid(), context.context_id);
-
-      XELOGD(xe::to_utf8(context_desc));
-    }
-
-    for (uint32_t i = 0; i < search_data->num_props; i++) {
-      xam::XUSER_PROPERTY& property = search_properties_ptr[i];
-
-      std::u16string property_desc =
-          kernel_state->xam_state()->user_tracker()->GetPropertyDescription(
-              property.property_id);
-
-      XELOGD(xe::to_utf8(property_desc));
-    }
+  if (kernel_state->emulator()->game_info_database()->GetMatchmakingCollection().properties.size() > 0) {
+    // XeniOS: XLast matchmaking query API differs from Adrian's fork.
+    // Parameters, filters and returns are accessed without proc_index.
+    // Context/property descriptions not available in XeniOS's UserTracker.
+    XELOGI("Matchmaking collection available for session search.");
   }
 
   for (uint32_t i = 0; i < session_count; i++) {
@@ -999,12 +970,9 @@ void XSession::FillSessionContext(
     std::vector<xam::Property> contexts, uint32_t filter_contexts_count,
     xam::XUSER_CONTEXT* filter_contexts_ptr, XSESSION_SEARCHRESULT* result) {
   if (matchmaking_query) {
-    const auto paramaters = matchmaking_query->GetParameters(matchmaking_index);
-    const auto filters_left =
-        matchmaking_query->GetFiltersLeft(matchmaking_index);
-    const auto filters_right =
-        matchmaking_query->GetFiltersRight(matchmaking_index);
-    const auto returns = matchmaking_query->GetReturns(matchmaking_index);
+    const auto paramaters = matchmaking_query->GetParameters();
+    const auto returns = matchmaking_query->GetReturns();
+    const auto filters = matchmaking_query->GetFilters();
   }
 
   result->contexts_count = static_cast<uint32_t>(contexts.size());
