@@ -24,13 +24,14 @@ workflows:
           git -C third_party/DirectXShaderCompiler submodule update --init --depth=1 \
             external/SPIRV-Headers external/SPIRV-Tools
 
-      - name: Install premake5
+     - name: Install premake5
         script: |
           brew install premake
-          echo "Premake location: $(which premake5)"
-          premake5 --version
-          echo "xb script premake check:"
-          grep -n "premake5" xb | head -20
+          mkdir -p tools/build/bin
+          cp $(which premake5) tools/build/bin/premake5
+          chmod +x tools/build/bin/premake5
+          echo "Premake5 installed to tools/build/bin/premake5"
+          tools/build/bin/premake5 --version
           
       - name: Run premake for iOS
         script: |
