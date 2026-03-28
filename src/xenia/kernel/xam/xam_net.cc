@@ -388,7 +388,7 @@ dword_result_t NetDll_WSASendTo_entry(
     combined_buffer_offset += buffers[i].len;
   }
 
-  N_XSOCKADDR_IN native_to(to_ptr);
+  XSOCKADDR_IN native_to = *to_ptr;
   socket->SendTo(combined_buffer_mem.data(), combined_buffer_size, flags,
                  &native_to, to_len);
 
@@ -1081,7 +1081,7 @@ dword_result_t NetDll_sendto_entry(dword_t caller, dword_t socket_handle,
     return -1;
   }
 
-  N_XSOCKADDR_IN native_to(to_ptr);
+  XSOCKADDR_IN native_to = *to_ptr;
   int ret = socket->SendTo(buf_ptr, buf_len, flags, &native_to, to_len);
   return ret;
 }
@@ -1116,7 +1116,8 @@ dword_result_t NetDll_getsockname_entry(dword_t caller, dword_t socket_handle,
 
   int buffer_len = *len_ptr;
 
-  X_STATUS status = socket->GetSockName(buf_ptr, &buffer_len);
+  XSOCKADDR_IN native_buf = {};
+  X_STATUS status = socket->GetSockName(&native_buf, &buffer_len);
   if (XFAILED(status)) {
     XThread::SetLastError(socket->GetLastWSAError());
     return -1;
